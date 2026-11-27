@@ -8,7 +8,7 @@ import {
   LoginResultDataSchema,
   type AuthContextData,
 } from "@shared/schemas/auth";
-import { Button, ButtonVariants, Field, FieldLabel, Input, Separator } from "@ui/index";
+import { Button, ButtonVariants, Field, FieldLabel, getButtonClasses, Input, Separator } from "@ui/index";
 import { useEffect, useState, type FormEvent, type MouseEvent, type ReactElement } from "react";
 import * as v from "valibot";
 
@@ -153,8 +153,9 @@ export function LoginPage(): ReactElement {
     void submitLogin();
   };
 
-  const showOAuth = Boolean(context && (context.providers.google || context.providers.github));
   const loginsDisabled = context !== null && !context.allowLogins;
+  const showOAuth = Boolean(context && !loginsDisabled && (context.providers.google || context.providers.github));
+  const oauthLinkClassName = getButtonClasses({ variant: ButtonVariants.Secondary, className: "flex-1" });
 
   return (
     <AuthShell
@@ -174,10 +175,7 @@ export function LoginPage(): ReactElement {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2.5 sm:flex-row">
             {context.providers.google ? (
-              <a
-                href={`/auth/google?${qs}`}
-                className="inline-flex h-control-md min-h-hit min-w-hit flex-1 items-center justify-center gap-2 rounded-control border border-border-default bg-surface-300 px-control-px-md font-mono text-xs font-ui tracking-ui text-text-primary shadow-control focus-ring transition-control duration-control ease-ui hover:border-border-strong hover:bg-surface-hover active:scale-press active:bg-surface-active"
-              >
+              <a href={`/auth/google?${qs}`} className={oauthLinkClassName}>
                 <svg aria-hidden="true" className="size-4.5 shrink-0">
                   <use href="/icons.svg#google-icon" />
                 </svg>
@@ -186,10 +184,7 @@ export function LoginPage(): ReactElement {
             ) : null}
 
             {context.providers.github ? (
-              <a
-                href={`/auth/github?${qs}`}
-                className="inline-flex h-control-md min-h-hit min-w-hit flex-1 items-center justify-center gap-2 rounded-control border border-border-default bg-surface-300 px-control-px-md font-mono text-xs font-ui tracking-ui text-text-primary shadow-control focus-ring transition-control duration-control ease-ui hover:border-border-strong hover:bg-surface-hover active:scale-press active:bg-surface-active"
-              >
+              <a href={`/auth/github?${qs}`} className={oauthLinkClassName}>
                 <svg aria-hidden="true" className="size-4.5 shrink-0">
                   <use href="/icons.svg#github-icon" />
                 </svg>

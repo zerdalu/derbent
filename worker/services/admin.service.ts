@@ -18,6 +18,10 @@ import { AdminUserService } from "@worker/services/admin-user.service";
 import { AppError } from "@worker/types/errors";
 import type { AppRecord, DerbentConfig } from "@worker/types/models";
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Error && /unique constraint/i.test(error.message);
+}
+
 export class AdminService {
   private readonly userRepo: UserRepository;
   private readonly auditLogRepo: AuditLogRepository;
@@ -171,10 +175,17 @@ export class AdminService {
   async createApp(data: Omit<AppRecord, "created_at" | "updated_at">): Promise<void> {
     const existing = await this.appRepo.findById(data.id);
     if (existing) {
-      throw new AppError("An app with this ID already exists.", 400);
+      throw new AppError("An app with this ID already exists.", 409);
     }
 
-    await this.appRepo.create(data);
+    try {
+      await this.appRepo.create(data);
+    } catch (error: unknown) {
+      if (isUniqueConstraintError(error)) {
+        throw new AppError("An app with this ID already exists.", 409);
+      }
+      throw error;
+    }
 
     await this.auditLogRepo.log({
       action: "admin_create_app",

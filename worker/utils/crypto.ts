@@ -25,6 +25,36 @@ export async function constantTimeEqual(a: string, b: string): Promise<boolean> 
   return timingSafeEqual(bufA, bufB);
 }
 
+/**
+ * Produces a short, non-reversible SHA-256 reference for a session token so audit logs
+ * can correlate session events without exposing the bearer token itself.
+ */
+export async function hashSessionRef(sessionId: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sessionId));
+  const bytes = new Uint8Array(digest);
+  let hex = "";
+  for (let i = 0; i < 6; i++) {
+    hex += (bytes[i] ?? 0).toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Generates an RFC 7636 PKCE code verifier (43 base64url characters from 32 random bytes).
+ */
+export function generatePkceVerifier(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return bufferToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Computes the RFC 7636 S256 PKCE code challenge for a given verifier.
+ */
+export async function computePkceChallenge(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return bufferToBase64(digest).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export async function hashPassword(password: string, iterations: number): Promise<string> {
   const effectiveIterations = Math.min(Math.max(Math.trunc(iterations), 10000), MAX_WORKERS_PBKDF2_ITERATIONS);
   const salt = crypto.getRandomValues(new Uint8Array(16));

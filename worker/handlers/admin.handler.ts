@@ -61,6 +61,20 @@ export class AdminHandler {
         return validationError(c, result.issues[0]?.message ?? "Validation failed.");
       }
 
+      const isProd = c.get("config").APP_ENV === "production";
+      const baseUrl = result.output.BASE_URL?.trim();
+      if (isProd && baseUrl) {
+        const parsedBaseUrl = new URL(baseUrl);
+        if (parsedBaseUrl.protocol !== "https:") {
+          return validationError(c, "BASE_URL must use https:// in production.");
+        }
+      }
+
+      const cookieDomain = result.output.COOKIE_DOMAIN?.trim().toLowerCase();
+      if (isProd && cookieDomain === "localhost") {
+        return validationError(c, "COOKIE_DOMAIN cannot be set to localhost in production.");
+      }
+
       await c.get("adminService").updateSettings(result.output, masterKey);
       const response: ApiResponse<{ readonly updated: boolean }> = {
         success: true,

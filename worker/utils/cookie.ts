@@ -22,6 +22,27 @@ export function buildCookieOptions(config: DerbentConfig, maxAge?: number): Cook
   return options;
 }
 
+/**
+ * Builds host-only cookie options (omitting Domain) for OAuth state/PKCE cookies
+ * so sibling subdomains cannot read or overwrite them.
+ */
+export function buildHostCookieOptions(config: DerbentConfig, maxAge?: number): CookieOptions {
+  const isProd = config.APP_ENV === "production";
+
+  const options: CookieOptions = {
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: isProd,
+  };
+
+  if (maxAge !== undefined) {
+    options.maxAge = maxAge;
+  }
+
+  return options;
+}
+
 export function parseCookieHeaderAll(cookieHeader: string, targetName: string): readonly string[] {
   if (!cookieHeader) {
     return [];

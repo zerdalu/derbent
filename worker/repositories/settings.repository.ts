@@ -57,6 +57,7 @@ export class SettingsRepository {
   async buildAndCacheConfig(masterKey: string): Promise<Record<string, string>> {
     const records = await this.getAll();
     const configMap: Record<string, string> = {};
+    let hadDecryptionError = false;
 
     for (const record of records) {
       if (record.value === null) {
@@ -67,6 +68,7 @@ export class SettingsRepository {
         try {
           configMap[record.key] = await decryptSecret(record.value, masterKey);
         } catch (error: unknown) {
+          hadDecryptionError = true;
           if (error instanceof Error) {
             console.error(`[SettingsRepo] Failed to decrypt secret setting '${record.key}':`, error.message);
           }
@@ -74,6 +76,11 @@ export class SettingsRepository {
       } else {
         configMap[record.key] = record.value;
       }
+    }
+
+    if (hadDecryptionError) {
+      console.warn("[SettingsRepo] Skipping KV config cache write due to secret decryption error.");
+      return configMap;
     }
 
     try {

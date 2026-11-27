@@ -2,10 +2,10 @@ import { AppActionInputSchema, type RedirectResultData } from "@shared/schemas/a
 import type { ApiResponse } from "@shared/types/api-response";
 import { getActiveSession, validationError } from "@worker/handlers/http.utils";
 import type { HonoEnv } from "@worker/types/hono-env";
-import { buildCookieOptions } from "@worker/utils/cookie";
+import { buildCookieOptions, parseCookieHeaderAll } from "@worker/utils/cookie";
 import { getClientInfo, handleApiError, readJsonBody, resolveTargetApp } from "@worker/utils/runtime";
 import type { Context } from "hono";
-import { deleteCookie, getCookie } from "hono/cookie";
+import { deleteCookie } from "hono/cookie";
 import * as v from "valibot";
 
 export class AuthSessionHandler {
@@ -26,26 +26,21 @@ export class AuthSessionHandler {
       );
       const authService = c.get("authService");
       const cookieOptions = buildCookieOptions(config);
+      const cookieHeader = c.req.header("Cookie") ?? "";
 
-      const directSessionId = getCookie(c, `session_${resolved.appId}`);
-      const ssoSessionId = resolved.appId !== "sso" ? getCookie(c, "session_sso") : undefined;
-
-      if (directSessionId) {
-        try {
-          await authService.logout(directSessionId, resolved.appId);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            c.get("logger").warn(`Logout direct session revocation failed: ${error.message}`);
-          }
+      const candidateSessionIds = new Set<string>(parseCookieHeaderAll(cookieHeader, `session_${resolved.appId}`));
+      if (resolved.appId !== "sso") {
+        for (const ssoSessionId of parseCookieHeaderAll(cookieHeader, "session_sso")) {
+          candidateSessionIds.add(ssoSessionId);
         }
       }
 
-      if (ssoSessionId && ssoSessionId !== directSessionId) {
+      for (const sessionId of candidateSessionIds) {
         try {
-          await authService.logout(ssoSessionId, resolved.appId);
+          await authService.logout(sessionId, resolved.appId);
         } catch (error: unknown) {
           if (error instanceof Error) {
-            c.get("logger").warn(`Logout SSO session revocation failed: ${error.message}`);
+            c.get("logger").warn(`Logout session revocation failed: ${error.message}`);
           }
         }
       }
@@ -82,6 +77,7 @@ export class AuthSessionHandler {
       );
       const authService = c.get("authService");
       const { ip, userAgent } = getClientInfo(c);
+      const cookieHeader = c.req.header("Cookie") ?? "";
 
       const active = await getActiveSession(c, resolved.appId, true);
       if (active) {
@@ -94,25 +90,19 @@ export class AuthSessionHandler {
         }
       }
 
-      const directSessionId = getCookie(c, `session_${resolved.appId}`);
-      const ssoSessionId = resolved.appId !== "sso" ? getCookie(c, "session_sso") : undefined;
-
-      if (directSessionId) {
-        try {
-          await authService.logout(directSessionId, resolved.appId);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            c.get("logger").debug(`Direct session cleanup skipped: ${error.message}`);
-          }
+      const candidateSessionIds = new Set<string>(parseCookieHeaderAll(cookieHeader, `session_${resolved.appId}`));
+      if (resolved.appId !== "sso") {
+        for (const ssoSessionId of parseCookieHeaderAll(cookieHeader, "session_sso")) {
+          candidateSessionIds.add(ssoSessionId);
         }
       }
 
-      if (ssoSessionId && ssoSessionId !== directSessionId) {
+      for (const sessionId of candidateSessionIds) {
         try {
-          await authService.logout(ssoSessionId, resolved.appId);
+          await authService.logout(sessionId, resolved.appId);
         } catch (error: unknown) {
           if (error instanceof Error) {
-            c.get("logger").debug(`SSO session cleanup skipped: ${error.message}`);
+            c.get("logger").debug(`Session cleanup skipped: ${error.message}`);
           }
         }
       }
@@ -152,27 +142,26 @@ export class AuthSessionHandler {
       const appRepo = c.get("appRepo");
       const logger = c.get("logger");
       const { ip, userAgent } = getClientInfo(c);
+      const cookieHeader = c.req.header("Cookie") ?? "";
 
       const targetEmails = new Set<string>();
       const sessionIdsToPurge = new Set<string>();
       const allApps = await appRepo.findAll();
 
       for (const app of allApps) {
-        const cookieVal = getCookie(c, `session_${app.id}`);
-        if (!cookieVal) {
-          continue;
-        }
+        const cookieValues = parseCookieHeaderAll(cookieHeader, `session_${app.id}`);
+        for (const cookieVal of cookieValues) {
+          sessionIdsToPurge.add(cookieVal);
 
-        sessionIdsToPurge.add(cookieVal);
-
-        try {
-          const session = await authService.verifySession(cookieVal, app.id, ip, userAgent, {
-            allowDisabledApp: true,
-          });
-          targetEmails.add(session.email);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            logger.debug(`Session verification failed for app ${app.id}: ${error.message}`);
+          try {
+            const session = await authService.verifySession(cookieVal, app.id, ip, userAgent, {
+              allowDisabledApp: true,
+            });
+            targetEmails.add(session.email);
+          } catch (error: unknown) {
+            if (error instanceof Error) {
+              logger.debug(`Session verification failed for app ${app.id}: ${error.message}`);
+            }
           }
         }
       }

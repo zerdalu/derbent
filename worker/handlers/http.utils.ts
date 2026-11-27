@@ -1,9 +1,9 @@
 import type { Session } from "@shared/schemas/auth";
 import type { ApiResponse } from "@shared/types/api-response";
 import type { HonoEnv } from "@worker/types/hono-env";
+import { parseCookieHeaderAll } from "@worker/utils/cookie";
 import { getClientInfo } from "@worker/utils/runtime";
 import type { Context } from "hono";
-import { getCookie } from "hono/cookie";
 
 export interface ActiveSessionContext {
   readonly session: Session;
@@ -39,6 +39,7 @@ export async function getActiveSession(
   const appRepo = c.get("appRepo");
   const logger = c.get("logger");
   const { ip, userAgent } = getClientInfo(c);
+  const cookieHeader = c.req.header("Cookie") ?? "";
 
   const normalizedPreferred = preferredAppId?.trim();
   let candidateCookieApps: readonly string[];
@@ -51,18 +52,22 @@ export async function getActiveSession(
   }
 
   for (const cookieAppKey of candidateCookieApps) {
-    const cookieVal = getCookie(c, `session_${cookieAppKey}`);
-    if (!cookieVal) {
+    const cookieValues = parseCookieHeaderAll(cookieHeader, `session_${cookieAppKey}`);
+    if (cookieValues.length === 0) {
       continue;
     }
 
     const requiredAppId = normalizedPreferred || cookieAppKey;
-    try {
-      const session = await authService.verifySession(cookieVal, requiredAppId, ip, userAgent, { allowDisabledApp });
-      return { session, appId: cookieAppKey, sessionId: cookieVal };
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        logger.debug(`Session verification skipped for ${cookieAppKey}: ${error.message}`);
+    for (const cookieVal of cookieValues) {
+      try {
+        const session = await authService.verifySession(cookieVal, requiredAppId, ip, userAgent, {
+          allowDisabledApp,
+        });
+        return { session, appId: cookieAppKey, sessionId: cookieVal };
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          logger.debug(`Session verification skipped for ${cookieAppKey}: ${error.message}`);
+        }
       }
     }
   }

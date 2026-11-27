@@ -81,7 +81,8 @@ export class AuthTwoFactorHandler {
         return validationError(c, result.issues[0]?.message ?? "A 6-digit code is required.");
       }
 
-      await c.get("authService").enableTwoFactor(active.session.userId, result.output.code);
+      const { ip, userAgent } = getClientInfo(c);
+      await c.get("authService").enableTwoFactor(active.session.userId, result.output.code, ip, userAgent);
 
       const response: ApiResponse<SuccessMessageData> = {
         success: true,
@@ -106,7 +107,8 @@ export class AuthTwoFactorHandler {
         return validationError(c, result.issues[0]?.message ?? "A 6-digit code is required.");
       }
 
-      await c.get("authService").disableTwoFactor(active.session.userId, result.output.code);
+      const { ip, userAgent } = getClientInfo(c);
+      await c.get("authService").disableTwoFactor(active.session.userId, result.output.code, ip, userAgent);
 
       const response: ApiResponse<SuccessMessageData> = {
         success: true,

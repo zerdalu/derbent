@@ -33,8 +33,8 @@ function isSameOriginAllowed(candidateOrigin: string, baseUrl: string, requestUr
 }
 
 /**
- * Protects state-changing SPA JSON API endpoints against Cross-Site Request Forgery
- * using Fetch Metadata, Origin verification, and strict JSON Content-Type enforcement.
+ * Protects state-changing SPA JSON API endpoints against Cross-Site and Sibling-Subdomain Request Forgery
+ * using Fetch Metadata, strict Origin verification, and exact JSON MIME essence enforcement.
  */
 export const csrfProtection = (): MiddlewareHandler<HonoEnv> => {
   return async (c, next) => {
@@ -47,18 +47,20 @@ export const csrfProtection = (): MiddlewareHandler<HonoEnv> => {
     const isDev = config.APP_ENV === "development";
     const fetchSite = c.req.header("Sec-Fetch-Site");
 
-    if (fetchSite === "cross-site") {
+    if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
       const errorResponse: ApiResponse<never> = {
         success: false,
         error: {
           code: "FORBIDDEN",
-          message: "Cross-site state-changing requests are forbidden.",
+          message: "Cross-origin state-changing requests are forbidden.",
         },
       };
       return c.json(errorResponse, 403);
     }
 
     const originHeader = c.req.header("Origin");
+    const refererHeader = c.req.header("Referer");
+
     if (originHeader && !isSameOriginAllowed(originHeader, config.BASE_URL, c.req.url, isDev)) {
       const errorResponse: ApiResponse<never> = {
         success: false,
@@ -70,7 +72,6 @@ export const csrfProtection = (): MiddlewareHandler<HonoEnv> => {
       return c.json(errorResponse, 403);
     }
 
-    const refererHeader = c.req.header("Referer");
     if (!originHeader && refererHeader && !isSameOriginAllowed(refererHeader, config.BASE_URL, c.req.url, isDev)) {
       const errorResponse: ApiResponse<never> = {
         success: false,
@@ -82,8 +83,20 @@ export const csrfProtection = (): MiddlewareHandler<HonoEnv> => {
       return c.json(errorResponse, 403);
     }
 
-    const contentType = c.req.header("Content-Type") ?? "";
-    if (!contentType.toLowerCase().includes("application/json")) {
+    if (!isDev && !originHeader && !refererHeader && fetchSite !== "same-origin") {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: "FORBIDDEN",
+          message: "Missing request origin context.",
+        },
+      };
+      return c.json(errorResponse, 403);
+    }
+
+    const rawContentType = c.req.header("Content-Type") ?? "";
+    const mediaType = rawContentType.split(";")[0]?.trim().toLowerCase() ?? "";
+    if (mediaType !== "application/json") {
       const errorResponse: ApiResponse<never> = {
         success: false,
         error: {

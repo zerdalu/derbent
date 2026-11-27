@@ -22,6 +22,14 @@ import {
   Button,
   ButtonSizes,
   ButtonVariants,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  getButtonClasses,
   Menu,
   MenuContent,
   MenuItem,
@@ -29,12 +37,17 @@ import {
   MenuTrigger,
   Progress,
   Separator,
+  toastManager,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@ui/index";
 import { cn } from "cn";
 import { useEffect, useState, type ReactElement } from "react";
+
+type PendingLogoutConfirmation =
+  | { readonly kind: "logout_all_devices"; readonly appId: string; readonly appName: string }
+  | { readonly kind: "logout_all_accounts" };
 
 function resolveSuccessMessage(successParam: string | null): string | null {
   switch (successParam) {
@@ -56,8 +69,8 @@ interface AppRowProps {
   readonly isLoggedInAsSso: boolean;
   readonly isThisRowSso: boolean;
   readonly isBusy: boolean;
-  readonly onLogout: (appId: string) => void;
-  readonly onLogoutAllDevices: (appId: string) => void;
+  readonly onLogout: (appId: string, appName: string) => void;
+  readonly onRequestLogoutAllDevices: (appId: string, appName: string) => void;
 }
 
 function AppRow({
@@ -66,7 +79,7 @@ function AppRow({
   isThisRowSso,
   isBusy,
   onLogout,
-  onLogoutAllDevices,
+  onRequestLogoutAllDevices,
 }: AppRowProps): ReactElement {
   const isLoggedIn = app.session !== null;
   const hasPassword = app.session?.hasPassword !== false;
@@ -166,7 +179,7 @@ function AppRow({
               <MenuSeparator />
               <MenuItem
                 onClick={() => {
-                  onLogoutAllDevices(app.config.id);
+                  onRequestLogoutAllDevices(app.config.id, app.config.name);
                 }}
               >
                 <span className="flex items-center gap-2">
@@ -177,7 +190,7 @@ function AppRow({
               <MenuItem
                 danger
                 onClick={() => {
-                  onLogout(app.config.id);
+                  onLogout(app.config.id, app.config.name);
                 }}
               >
                 <span className="flex items-center gap-2">
@@ -198,7 +211,10 @@ function AppRow({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${app.config.name}`}
-                  className="inline-flex size-control-md min-h-hit min-w-hit items-center justify-center rounded-control border border-border-default bg-surface-300 text-text-primary shadow-control focus-ring transition-control duration-control ease-ui hover:border-border-strong hover:bg-surface-hover active:scale-press active:bg-surface-active"
+                  className={getButtonClasses({
+                    variant: ButtonVariants.Secondary,
+                    size: ButtonSizes.IconMd,
+                  })}
                 />
               }
             >
@@ -236,6 +252,7 @@ export function DashboardPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionBusy, setIsActionBusy] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingLogoutConfirmation | null>(null);
 
   const fetchDashboard = async (): Promise<void> => {
     const res = await apiGet("/api/auth/dashboard", DashboardDataSchema);
@@ -269,7 +286,12 @@ export function DashboardPage(): ReactElement {
     };
   }, []);
 
-  const handleLogout = async (endpoint: string, appId: string): Promise<void> => {
+  const handleLogout = async (
+    endpoint: string,
+    appId: string,
+    toastTitle: string,
+    toastDescription: string,
+  ): Promise<void> => {
     setIsActionBusy(true);
     setError(null);
     const res = await apiPost(endpoint, { appId, redirect: "/" }, RedirectResultDataSchema);
@@ -280,6 +302,42 @@ export function DashboardPage(): ReactElement {
     }
     await fetchDashboard();
     setIsActionBusy(false);
+    toastManager.add({
+      title: toastTitle,
+      description: toastDescription,
+      type: "success",
+    });
+  };
+
+  const handleConfirmPendingLogout = async (): Promise<void> => {
+    if (!pendingConfirm) {
+      return;
+    }
+    const target = pendingConfirm;
+    setPendingConfirm(null);
+
+    switch (target.kind) {
+      case "logout_all_devices":
+        await handleLogout(
+          "/api/auth/logout-all",
+          target.appId,
+          "All devices signed out",
+          `Revoked all active sessions for ${target.appName}.`,
+        );
+        break;
+      case "logout_all_accounts":
+        await handleLogout(
+          "/api/auth/logout-all-email",
+          "sso",
+          "All accounts signed out",
+          "Revoked sessions across all connected accounts.",
+        );
+        break;
+      default: {
+        const _exhaustive: never = target;
+        throw new Error(`Unhandled logout confirmation: ${JSON.stringify(_exhaustive)}`);
+      }
+    }
   };
 
   const ssoApp = dashboard?.apps.find((entry) => entry.config.id === "sso") ?? null;
@@ -309,11 +367,11 @@ export function DashboardPage(): ReactElement {
               isLoggedInAsSso={isLoggedInAsSso}
               isThisRowSso
               isBusy={isActionBusy}
-              onLogout={(id) => {
-                void handleLogout("/api/auth/logout", id);
+              onLogout={(id, name) => {
+                void handleLogout("/api/auth/logout", id, "Signed out", `Ended your ${name} session.`);
               }}
-              onLogoutAllDevices={(id) => {
-                void handleLogout("/api/auth/logout-all", id);
+              onRequestLogoutAllDevices={(id, name) => {
+                setPendingConfirm({ kind: "logout_all_devices", appId: id, appName: name });
               }}
             />
           ) : null}
@@ -325,11 +383,11 @@ export function DashboardPage(): ReactElement {
               isLoggedInAsSso={isLoggedInAsSso}
               isThisRowSso={false}
               isBusy={isActionBusy}
-              onLogout={(id) => {
-                void handleLogout("/api/auth/logout", id);
+              onLogout={(id, name) => {
+                void handleLogout("/api/auth/logout", id, "Signed out", `Ended your ${name} session.`);
               }}
-              onLogoutAllDevices={(id) => {
-                void handleLogout("/api/auth/logout-all", id);
+              onRequestLogoutAllDevices={(id, name) => {
+                setPendingConfirm({ kind: "logout_all_devices", appId: id, appName: name });
               }}
             />
           ))}
@@ -346,7 +404,7 @@ export function DashboardPage(): ReactElement {
               size={ButtonSizes.Xs}
               disabled={isActionBusy}
               onClick={() => {
-                void handleLogout("/api/auth/logout-all-email", "sso");
+                setPendingConfirm({ kind: "logout_all_accounts" });
               }}
             >
               <SignOutIcon aria-hidden="true" className="size-4.5" />
@@ -355,6 +413,44 @@ export function DashboardPage(): ReactElement {
           </div>
         </>
       ) : null}
+
+      <Dialog
+        open={pendingConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingConfirm(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingConfirm?.kind === "logout_all_accounts" ? "Sign out of all accounts?" : "Sign out all devices?"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingConfirm?.kind === "logout_all_accounts"
+                ? "This revokes active sessions across every device and connected account for your email."
+                : `This revokes all active ${pendingConfirm?.appName ?? ""} sessions across every device.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant={ButtonVariants.Secondary} size={ButtonSizes.Sm} />}>
+              Cancel
+            </DialogClose>
+            <Button
+              type="button"
+              variant={ButtonVariants.Danger}
+              size={ButtonSizes.Sm}
+              disabled={isActionBusy}
+              onClick={() => {
+                void handleConfirmPendingLogout();
+              }}
+            >
+              Confirm Sign Out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthShell>
   );
 }

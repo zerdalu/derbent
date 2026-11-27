@@ -1,7 +1,13 @@
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import { buildCookieOptions, buildHostCookieOptions } from "@worker/utils/cookie";
-import { constantTimeEqual, decodeBase64UrlUtf8, encodeBase64UrlUtf8 } from "@worker/utils/crypto";
+import {
+  computePkceChallenge,
+  constantTimeEqual,
+  decodeBase64UrlUtf8,
+  encodeBase64UrlUtf8,
+  generatePkceVerifier,
+} from "@worker/utils/crypto";
 import {
   clearConflictingSessions,
   getClientInfo,
@@ -22,6 +28,13 @@ const OAuthStateSchema = v.object({
 });
 
 type OAuthState = v.InferOutput<typeof OAuthStateSchema>;
+
+const OAuthCookiePayloadSchema = v.object({
+  nonce: v.string(),
+  codeVerifier: v.string(),
+});
+
+type OAuthCookiePayload = v.InferOutput<typeof OAuthCookiePayloadSchema>;
 
 const GitHubTokenResponseSchema = v.object({
   access_token: v.string(),
@@ -45,10 +58,10 @@ const GoogleTokenResponseSchema = v.object({
   id_token: v.optional(v.string()),
 });
 
-const GoogleUserInfoSchema = v.object({
-  id: v.string(),
+const GoogleOidcUserInfoSchema = v.object({
+  sub: v.string(),
   email: v.pipe(v.string(), v.email()),
-  verified_email: v.boolean(),
+  email_verified: v.boolean(),
   name: v.optional(v.string()),
   picture: v.optional(v.string()),
 });
@@ -72,6 +85,21 @@ function decodeOAuthState(c: Context<HonoEnv>, rawState: string | undefined): OA
   }
 }
 
+function decodeOAuthCookiePayload(rawCookie: string | undefined): OAuthCookiePayload | null {
+  if (!rawCookie) {
+    return null;
+  }
+
+  try {
+    const decodedJson = decodeBase64UrlUtf8(rawCookie);
+    const parsed: unknown = JSON.parse(decodedJson);
+    const result = v.safeParse(OAuthCookiePayloadSchema, parsed);
+    return result.success ? result.output : null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveOAuthErrorCode(error: unknown, provider: "github" | "google"): string {
   if (error instanceof AppError) {
     if (error.status === 409) {
@@ -85,7 +113,7 @@ function resolveOAuthErrorCode(error: unknown, provider: "github" | "google"): s
       if (lower.includes("registration")) {
         return "signups_disabled";
       }
-      if (lower.includes("login")) {
+      if (lower.includes("login") || lower.includes("single sign-on")) {
         return "logins_disabled";
       }
     }
@@ -103,6 +131,15 @@ export class OAuthHandler {
       config.APP_ENV,
     );
 
+    if (resolved.app.allow_logins === 0) {
+      const qs = new URLSearchParams({
+        app_id: resolved.appId,
+        redirect: resolved.redirect,
+        error: "logins_disabled",
+      }).toString();
+      return c.redirect(`/login?${qs}`);
+    }
+
     if (!config.GITHUB_CLIENT_ID) {
       const qs = new URLSearchParams({
         app_id: resolved.appId,
@@ -113,7 +150,10 @@ export class OAuthHandler {
     }
 
     const nonce = crypto.randomUUID();
-    setCookie(c, "github_oauth_state", nonce, buildHostCookieOptions(config, 600));
+    const codeVerifier = generatePkceVerifier();
+    const codeChallenge = await computePkceChallenge(codeVerifier);
+    const cookiePayload = encodeBase64UrlUtf8(JSON.stringify({ nonce, codeVerifier }));
+    setCookie(c, "github_oauth_state", cookiePayload, buildHostCookieOptions(config, 600));
 
     const state = encodeBase64UrlUtf8(JSON.stringify({ appId: resolved.appId, redirect: resolved.redirect, nonce }));
     const redirectUri = `${config.BASE_URL.replace(/\/+$/, "")}/auth/github/callback`;
@@ -122,6 +162,8 @@ export class OAuthHandler {
       redirect_uri: redirectUri,
       scope: "user:email",
       state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
     }).toString();
 
     return c.redirect(`https://github.com/login/oauth/authorize?${authParams}`);
@@ -134,7 +176,7 @@ export class OAuthHandler {
     const state = c.req.query("state");
     const { ip, userAgent } = getClientInfo(c);
 
-    const storedNonce = getCookie(c, "github_oauth_state");
+    const storedCookie = decodeOAuthCookiePayload(getCookie(c, "github_oauth_state"));
     deleteCookie(c, "github_oauth_state", buildHostCookieOptions(config));
 
     const parsedState = decodeOAuthState(c, state);
@@ -156,9 +198,10 @@ export class OAuthHandler {
     }
 
     const isNonceValid =
-      Boolean(storedNonce && parsedState.nonce) && (await constantTimeEqual(storedNonce ?? "", parsedState.nonce));
+      Boolean(storedCookie && parsedState.nonce) &&
+      (await constantTimeEqual(storedCookie?.nonce ?? "", parsedState.nonce));
 
-    if (!isNonceValid) {
+    if (!isNonceValid || !storedCookie) {
       const qs = new URLSearchParams({ app_id: appId, redirect, error: "github_failed" }).toString();
       return c.redirect(`/login?${qs}`);
     }
@@ -173,6 +216,7 @@ export class OAuthHandler {
           client_secret: config.GITHUB_CLIENT_SECRET,
           code,
           redirect_uri: redirectUri,
+          code_verifier: storedCookie.codeVerifier,
         }),
         signal: AbortSignal.timeout(OAUTH_FETCH_TIMEOUT_MS),
       });
@@ -250,6 +294,15 @@ export class OAuthHandler {
       config.APP_ENV,
     );
 
+    if (resolved.app.allow_logins === 0) {
+      const qs = new URLSearchParams({
+        app_id: resolved.appId,
+        redirect: resolved.redirect,
+        error: "logins_disabled",
+      }).toString();
+      return c.redirect(`/login?${qs}`);
+    }
+
     if (!config.GOOGLE_CLIENT_ID) {
       const qs = new URLSearchParams({
         app_id: resolved.appId,
@@ -260,7 +313,10 @@ export class OAuthHandler {
     }
 
     const nonce = crypto.randomUUID();
-    setCookie(c, "google_oauth_state", nonce, buildHostCookieOptions(config, 600));
+    const codeVerifier = generatePkceVerifier();
+    const codeChallenge = await computePkceChallenge(codeVerifier);
+    const cookiePayload = encodeBase64UrlUtf8(JSON.stringify({ nonce, codeVerifier }));
+    setCookie(c, "google_oauth_state", cookiePayload, buildHostCookieOptions(config, 600));
 
     const state = encodeBase64UrlUtf8(JSON.stringify({ appId: resolved.appId, redirect: resolved.redirect, nonce }));
     const redirectUri = `${config.BASE_URL.replace(/\/+$/, "")}/auth/google/callback`;
@@ -268,8 +324,10 @@ export class OAuthHandler {
       client_id: config.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: "code",
-      scope: "email profile",
+      scope: "openid email profile",
       state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
     }).toString();
 
     return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${authParams}`);
@@ -282,7 +340,7 @@ export class OAuthHandler {
     const state = c.req.query("state");
     const { ip, userAgent } = getClientInfo(c);
 
-    const storedNonce = getCookie(c, "google_oauth_state");
+    const storedCookie = decodeOAuthCookiePayload(getCookie(c, "google_oauth_state"));
     deleteCookie(c, "google_oauth_state", buildHostCookieOptions(config));
 
     const parsedState = decodeOAuthState(c, state);
@@ -304,9 +362,10 @@ export class OAuthHandler {
     }
 
     const isNonceValid =
-      Boolean(storedNonce && parsedState.nonce) && (await constantTimeEqual(storedNonce ?? "", parsedState.nonce));
+      Boolean(storedCookie && parsedState.nonce) &&
+      (await constantTimeEqual(storedCookie?.nonce ?? "", parsedState.nonce));
 
-    if (!isNonceValid) {
+    if (!isNonceValid || !storedCookie) {
       const qs = new URLSearchParams({ app_id: appId, redirect, error: "google_failed" }).toString();
       return c.redirect(`/login?${qs}`);
     }
@@ -322,6 +381,7 @@ export class OAuthHandler {
           code,
           grant_type: "authorization_code",
           redirect_uri: redirectUri,
+          code_verifier: storedCookie.codeVerifier,
         }).toString(),
         signal: AbortSignal.timeout(OAUTH_FETCH_TIMEOUT_MS),
       });
@@ -336,7 +396,7 @@ export class OAuthHandler {
         throw new AppError("Google token exchange failed", 401);
       }
 
-      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      const userRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
         headers: { Authorization: `Bearer ${tokenResult.output.access_token}` },
         signal: AbortSignal.timeout(OAUTH_FETCH_TIMEOUT_MS),
       });
@@ -346,12 +406,12 @@ export class OAuthHandler {
       }
 
       const rawUserData: unknown = await userRes.json();
-      const userResult = v.safeParse(GoogleUserInfoSchema, rawUserData);
+      const userResult = v.safeParse(GoogleOidcUserInfoSchema, rawUserData);
       if (!userResult.success) {
         throw new AppError("Failed to parse Google user response", 500);
       }
 
-      if (!userResult.output.verified_email) {
+      if (!userResult.output.email_verified) {
         throw new AppError("Google email is not verified", 400);
       }
 

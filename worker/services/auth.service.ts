@@ -21,6 +21,10 @@ export type { VerifySessionOptions };
 const MAX_IP_LOGIN_ATTEMPTS = 5;
 const MAX_EMAIL_LOGIN_ATTEMPTS = 15;
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Error && /unique constraint/i.test(error.message);
+}
+
 export class AuthService {
   private readonly userRepo: UserRepository;
   private readonly tokenRepo: TokenRepository;
@@ -135,6 +139,13 @@ export class AuthService {
       throw new AppError("Invalid email or password", 401);
     }
 
+    if (user.app === "sso" && appId !== "sso") {
+      const ssoApp = await this.appRepo.findById("sso");
+      if (!ssoApp || ssoApp.allow_logins === 0) {
+        throw new AppError("Single sign-on is currently disabled.", 403);
+      }
+    }
+
     if (user.is_locked === 1) {
       await this.auditLogRepo.log({
         action: "login_failed_locked",
@@ -182,6 +193,20 @@ export class AuthService {
 
     let user = await this.userRepo.findForLogin(normalizedEmail, appId);
 
+    // Prevent unverified app-account pre-squatting from trapping an OAuth user outside SSO
+    if (
+      user &&
+      user.email_verified === 0 &&
+      user.app !== "sso" &&
+      !(await this.userRepo.hasAnyVerifiedAppAccount(normalizedEmail))
+    ) {
+      const ssoAppRecord = await this.appRepo.findById("sso");
+      if (ssoAppRecord && ssoAppRecord.allow_signups === 1 && ssoAppRecord.allow_logins === 1) {
+        await this.userRepo.deleteUnverifiedByEmail(normalizedEmail);
+        user = null;
+      }
+    }
+
     if (!user) {
       if (appRecord.allow_signups === 0) {
         throw new AppError("Registrations are currently closed for this application.", 403);
@@ -191,6 +216,9 @@ export class AuthService {
         const ssoAppRecord = await this.appRepo.findById("sso");
         if (!ssoAppRecord || ssoAppRecord.allow_signups === 0) {
           throw new AppError("Registrations are currently closed for this application.", 403);
+        }
+        if (ssoAppRecord.allow_logins === 0) {
+          throw new AppError("Single sign-on is currently disabled.", 403);
         }
       }
 
@@ -202,23 +230,37 @@ export class AuthService {
       await this.userRepo.deleteUnverifiedByEmail(normalizedEmail);
 
       const userId = generateUUIDv7();
-      await this.userRepo.create({
-        id: userId,
-        app: "sso",
-        email: normalizedEmail,
-        phash: `OAUTH:${provider.toUpperCase()}`,
-        metadata: JSON.stringify({ provider }),
-        email_verified: 1,
-        token_version: 1,
-        two_factor_secret: null,
-        two_factor_enabled: 0,
-        is_locked: 0,
-      });
+      try {
+        await this.userRepo.create({
+          id: userId,
+          app: "sso",
+          email: normalizedEmail,
+          phash: `OAUTH:${provider.toUpperCase()}`,
+          metadata: JSON.stringify({ provider }),
+          email_verified: 1,
+          token_version: 1,
+          two_factor_secret: null,
+          two_factor_enabled: 0,
+          is_locked: 0,
+        });
+      } catch (error: unknown) {
+        if (isUniqueConstraintError(error)) {
+          throw new AppError("An account conflict occurred. Please try signing in again.", 409);
+        }
+        throw error;
+      }
       user = await this.userRepo.findById(userId);
     }
 
     if (!user) {
       throw new AppError("Failed to sync user", 500);
+    }
+
+    if (user.app === "sso" && appId !== "sso") {
+      const ssoApp = await this.appRepo.findById("sso");
+      if (!ssoApp || ssoApp.allow_logins === 0) {
+        throw new AppError("Single sign-on is currently disabled.", 403);
+      }
     }
 
     if (user.is_locked === 1) {
@@ -321,18 +363,25 @@ export class AuthService {
     const phash = await hashPassword(password, this.hashIterations);
     const userId = generateUUIDv7();
 
-    await this.userRepo.create({
-      id: userId,
-      app: appId,
-      email: normalizedEmail,
-      phash,
-      metadata: "{}",
-      email_verified: 0,
-      token_version: 1,
-      two_factor_secret: null,
-      two_factor_enabled: 0,
-      is_locked: 0,
-    });
+    try {
+      await this.userRepo.create({
+        id: userId,
+        app: appId,
+        email: normalizedEmail,
+        phash,
+        metadata: "{}",
+        email_verified: 0,
+        token_version: 1,
+        two_factor_secret: null,
+        two_factor_enabled: 0,
+        is_locked: 0,
+      });
+    } catch (error: unknown) {
+      if (isUniqueConstraintError(error)) {
+        throw new AppError("Account already exists for this app.", 409);
+      }
+      throw error;
+    }
 
     const token = crypto.randomUUID();
     await this.tokenRepo.saveEmailVerificationToken(token, userId, 1);
@@ -394,7 +443,7 @@ export class AuthService {
   }
 
   async verifyEmailToken(token: string, ip: string, userAgent: string): Promise<void> {
-    const tokenData = await this.tokenRepo.getVerifyTokenData(token);
+    const tokenData = await this.tokenRepo.consumeVerifyToken(token);
     if (!tokenData) {
       await this.auditLogRepo.log({
         action: "verify_email_failed",
@@ -407,7 +456,6 @@ export class AuthService {
 
     const user = await this.userRepo.findById(tokenData.userId);
     if (!user || user.token_version !== tokenData.tokenVersion) {
-      await this.tokenRepo.deleteEmailVerificationToken(token);
       await this.auditLogRepo.log({
         action: "verify_email_failed",
         userId: user?.id ?? null,
@@ -419,19 +467,12 @@ export class AuthService {
       throw new AppError("Verification link is invalid or has expired.", 400);
     }
 
-    try {
-      await assertNoVerifiedAccountConflict(this.userRepo, user);
-    } catch (error: unknown) {
-      await this.tokenRepo.deleteEmailVerificationToken(token);
-      throw error;
-    }
+    await assertNoVerifiedAccountConflict(this.userRepo, user);
 
     await this.userRepo.markEmailVerified(user.id);
     if (user.app === "sso") {
       await this.userRepo.deleteUnverifiedByEmail(user.email, user.id);
     }
-
-    await this.tokenRepo.deleteEmailVerificationToken(token);
 
     await this.auditLogRepo.log({
       action: "email_verified",
@@ -500,12 +541,12 @@ export class AuthService {
     return this.twoFactorService.verifyTwoFactorLogin(token, code, ip, userAgent, expectedAppId);
   }
 
-  enableTwoFactor(userId: string, code: string): Promise<void> {
-    return this.twoFactorService.enableTwoFactor(userId, code);
+  enableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
+    return this.twoFactorService.enableTwoFactor(userId, code, ip, userAgent);
   }
 
-  disableTwoFactor(userId: string, code: string): Promise<void> {
-    return this.twoFactorService.disableTwoFactor(userId, code);
+  disableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
+    return this.twoFactorService.disableTwoFactor(userId, code, ip, userAgent);
   }
 
   getTwoFactorSetupSecret(userId: string): Promise<string | null> {

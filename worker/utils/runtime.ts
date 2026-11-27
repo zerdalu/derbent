@@ -13,11 +13,11 @@ import { EmailService } from "@worker/services/email.service";
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import type { AppRecord, DerbentConfig } from "@worker/types/models";
-import { buildCookieOptions } from "@worker/utils/cookie";
+import { buildCookieOptions, parseCookieHeaderAll } from "@worker/utils/cookie";
 import { Logger } from "@worker/utils/logger";
 import { sanitizeRedirect } from "@worker/utils/url";
 import type { Context } from "hono";
-import { deleteCookie, getCookie } from "hono/cookie";
+import { deleteCookie } from "hono/cookie";
 
 const MAX_PBKDF2_ITERATIONS = 100000;
 const MIN_PBKDF2_ITERATIONS = 10000;
@@ -69,10 +69,10 @@ export function createRuntimeServices(
   const logger = new Logger(config.LOG_LEVEL || "info");
   const userRepo = new UserRepository(env.DB);
   const sessionRepo = new SessionRepository(env.KV);
-  const tokenRepo = new TokenRepository(env.KV);
+  const tokenRepo = new TokenRepository(env.DB);
   const userTokenVersionRepo = new UserTokenVersionRepository(env.KV);
   const auditLogRepo = new AuditLogRepository(env.DB);
-  const loginAttemptRepo = new LoginAttemptRepository(env.KV);
+  const loginAttemptRepo = new LoginAttemptRepository(env.DB);
   const settingsRepo = new SettingsRepository(env.DB, env.KV);
   const appRepo = new AppRepository(env.DB);
 
@@ -206,10 +206,10 @@ export async function clearConflictingSessions(c: Context<HonoEnv>, newlyLoggedI
   const appRepo = c.get("appRepo");
   const logger = c.get("logger");
   const cookieOpts = buildCookieOptions(c.get("config"));
+  const cookieHeader = c.req.header("Cookie") ?? "";
 
   if (newlyLoggedInApp === "sso") {
-    const existingSsoSessionId = getCookie(c, "session_sso");
-    if (existingSsoSessionId) {
+    for (const existingSsoSessionId of parseCookieHeaderAll(cookieHeader, "session_sso")) {
       try {
         await authService.logout(existingSsoSessionId);
       } catch (error: unknown) {
@@ -226,13 +226,15 @@ export async function clearConflictingSessions(c: Context<HonoEnv>, newlyLoggedI
       }
 
       const cookieName = `session_${app.id}`;
-      const existingSessionId = getCookie(c, cookieName);
-      if (existingSessionId) {
-        try {
-          await authService.logout(existingSessionId);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            logger.warn(`Failed to clean up conflicting session ${cookieName}: ${error.message}`);
+      const existingSessionIds = parseCookieHeaderAll(cookieHeader, cookieName);
+      if (existingSessionIds.length > 0) {
+        for (const existingSessionId of existingSessionIds) {
+          try {
+            await authService.logout(existingSessionId);
+          } catch (error: unknown) {
+            if (error instanceof Error) {
+              logger.warn(`Failed to clean up conflicting session ${cookieName}: ${error.message}`);
+            }
           }
         }
         deleteCookie(c, cookieName, cookieOpts);
@@ -241,20 +243,21 @@ export async function clearConflictingSessions(c: Context<HonoEnv>, newlyLoggedI
     return;
   }
 
-  const ssoSessionId = getCookie(c, "session_sso");
-  if (ssoSessionId) {
-    try {
-      await authService.logout(ssoSessionId);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        logger.warn(`Failed to clean up SSO session: ${error.message}`);
+  const ssoSessionIds = parseCookieHeaderAll(cookieHeader, "session_sso");
+  if (ssoSessionIds.length > 0) {
+    for (const ssoSessionId of ssoSessionIds) {
+      try {
+        await authService.logout(ssoSessionId);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          logger.warn(`Failed to clean up SSO session: ${error.message}`);
+        }
       }
     }
     deleteCookie(c, "session_sso", cookieOpts);
   }
 
-  const currentAppSessionId = getCookie(c, `session_${newlyLoggedInApp}`);
-  if (currentAppSessionId) {
+  for (const currentAppSessionId of parseCookieHeaderAll(cookieHeader, `session_${newlyLoggedInApp}`)) {
     try {
       await authService.logout(currentAppSessionId);
     } catch (error: unknown) {

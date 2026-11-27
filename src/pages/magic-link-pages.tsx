@@ -1,48 +1,11 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
-import { apiPost, type ApiClientResult } from "@/utils/api-client";
+import { apiPost } from "@/utils/api-client";
 import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
-import { MagicWandIcon } from "@phosphor-icons/react";
-import {
-  LoginResultDataSchema,
-  MagicLinkRequestInputSchema,
-  SuccessMessageDataSchema,
-  type LoginResultData,
-} from "@shared/schemas/auth";
-import { Button, ButtonVariants, Field, FieldLabel, Input, Progress } from "@ui/index";
+import { MagicWandIcon, SignInIcon } from "@phosphor-icons/react";
+import { LoginResultDataSchema, MagicLinkRequestInputSchema, SuccessMessageDataSchema } from "@shared/schemas/auth";
+import { Button, ButtonVariants, Field, FieldLabel, Input } from "@ui/index";
 import { useEffect, useState, type FormEvent, type MouseEvent, type ReactElement } from "react";
 import * as v from "valibot";
-
-const MAGIC_LINK_DEDUP_TTL_MS = 5000;
-const magicLinkRequests = new Map<string, Promise<ApiClientResult<LoginResultData>>>();
-
-function verifyMagicLinkOnce(
-  token: string,
-  appId: string,
-  redirect: string,
-): Promise<ApiClientResult<LoginResultData>> {
-  const cacheKey = `${token}:${appId}:${redirect}`;
-  const existing = magicLinkRequests.get(cacheKey);
-  if (existing) {
-    return existing;
-  }
-
-  const request = apiPost("/api/auth/magic-link/verify", { token, appId, redirect }, LoginResultDataSchema).then(
-    (res) => {
-      if (!res.ok && (res.status === 0 || res.status === 429 || res.status >= 500)) {
-        magicLinkRequests.delete(cacheKey);
-      } else {
-        window.setTimeout(() => {
-          if (magicLinkRequests.get(cacheKey) === request) {
-            magicLinkRequests.delete(cacheKey);
-          }
-        }, MAGIC_LINK_DEDUP_TTL_MS);
-      }
-      return res;
-    },
-  );
-  magicLinkRequests.set(cacheKey, request);
-  return request;
-}
 
 export function MagicLinkPage(): ReactElement {
   const location = useRouterLocation();
@@ -149,83 +112,94 @@ export function MagicLinkPage(): ReactElement {
   );
 }
 
-interface MagicLinkOutcome {
-  readonly token: string;
-  readonly result: ApiClientResult<LoginResultData>;
-}
-
 export function VerifyMagicLinkPage(): ReactElement {
   const location = useRouterLocation();
   const params = new URLSearchParams(location.search);
-  const token = params.get("token")?.trim() || "";
   const appId = params.get("app_id")?.trim() || "sso";
   const redirect = params.get("redirect") || "/";
   const qs = buildAuthQuery(appId, redirect);
 
-  const [outcome, setOutcome] = useState<MagicLinkOutcome | null>(null);
+  const [capturedToken] = useState<string>(() => params.get("token")?.trim() || "");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Scrub the one-time token from the browser URL bar and session history
   useEffect(() => {
-    if (!token) {
+    const currentParams = new URLSearchParams(window.location.search);
+    if (!currentParams.has("token")) {
+      return;
+    }
+    currentParams.delete("token");
+    const nextSearch = currentParams.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, []);
+
+  const handleConfirm = async (): Promise<void> => {
+    if (!capturedToken) {
       return;
     }
 
-    let cancelled = false;
-    const run = async (): Promise<void> => {
-      const result = await verifyMagicLinkOnce(token, appId, redirect);
-      if (cancelled) {
+    setError(null);
+    setIsSubmitting(true);
+    const result = await apiPost(
+      "/api/auth/magic-link/verify",
+      { token: capturedToken, appId, redirect },
+      LoginResultDataSchema,
+    );
+    setIsSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+
+    switch (result.data.status) {
+      case "authenticated":
+        navigate(result.data.redirect, { replace: true });
+        return;
+      case "requires_2fa": {
+        const verifyQs = new URLSearchParams({
+          token: result.data.twoFactorToken,
+          app_id: result.data.appId,
+          redirect: result.data.redirect,
+        }).toString();
+        navigate(`/2fa/verify?${verifyQs}`, { replace: true });
         return;
       }
-
-      if (result.ok) {
-        switch (result.data.status) {
-          case "authenticated":
-            navigate(result.data.redirect, { replace: true });
-            return;
-          case "requires_2fa": {
-            const verifyQs = new URLSearchParams({
-              token: result.data.twoFactorToken,
-              app_id: result.data.appId,
-              redirect: result.data.redirect,
-            }).toString();
-            navigate(`/2fa/verify?${verifyQs}`, { replace: true });
-            return;
-          }
-          case "verification_required":
-            navigate(`/verify-pending?${buildAuthQuery(result.data.appId, result.data.redirect)}`, {
-              replace: true,
-            });
-            return;
-          default: {
-            const _exhaustive: never = result.data;
-            throw new Error(`Unhandled magic link status: ${JSON.stringify(_exhaustive)}`);
-          }
-        }
+      case "verification_required":
+        navigate(`/verify-pending?${buildAuthQuery(result.data.appId, result.data.redirect)}`, {
+          replace: true,
+        });
+        return;
+      default: {
+        const _exhaustive: never = result.data;
+        throw new Error(`Unhandled magic link status: ${JSON.stringify(_exhaustive)}`);
       }
+    }
+  };
 
-      setOutcome({ token, result });
-    };
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, appId, redirect]);
-
-  const activeOutcome = outcome && outcome.token === token ? outcome.result : null;
-  const isMissingToken = token.length === 0;
-  const isPending = !isMissingToken && activeOutcome === null;
+  const isMissingToken = capturedToken.length === 0;
 
   return (
-    <AuthShell title="Magic link sign in" subtitle="Validating your one-time sign-in link.">
+    <AuthShell title="Magic link sign in" subtitle="Confirm to complete your one-time sign-in.">
       {isMissingToken ? <AuthAlert tone="danger">No magic link token was provided.</AuthAlert> : null}
+      {error ? <AuthAlert tone="danger">{error}</AuthAlert> : null}
 
-      {isPending ? (
-        <div className="py-2">
-          <Progress value={null} label="Signing you in..." />
-        </div>
+      {!isMissingToken ? (
+        <Button
+          type="button"
+          variant={ButtonVariants.Primary}
+          disabled={isSubmitting}
+          className="w-full"
+          onClick={() => {
+            void handleConfirm();
+          }}
+        >
+          <SignInIcon aria-hidden="true" className="size-4.5" />
+          <span>{isSubmitting ? "Signing in..." : "Continue to sign in"}</span>
+        </Button>
       ) : null}
-
-      {activeOutcome && !activeOutcome.ok ? <AuthAlert tone="danger">{activeOutcome.message}</AuthAlert> : null}
 
       <Button
         type="button"

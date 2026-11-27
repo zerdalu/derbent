@@ -1,35 +1,10 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
-import { apiPost, type ApiClientResult } from "@/utils/api-client";
+import { apiPost } from "@/utils/api-client";
 import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react";
-import { SuccessMessageDataSchema, type SuccessMessageData } from "@shared/schemas/auth";
-import { Button, ButtonVariants, Progress } from "@ui/index";
+import { CheckCircleIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react";
+import { SuccessMessageDataSchema } from "@shared/schemas/auth";
+import { Button, ButtonVariants } from "@ui/index";
 import { useEffect, useState, type ReactElement } from "react";
-
-const VERIFICATION_DEDUP_TTL_MS = 5000;
-const verificationRequests = new Map<string, Promise<ApiClientResult<SuccessMessageData>>>();
-
-function verifyEmailOnce(token: string): Promise<ApiClientResult<SuccessMessageData>> {
-  const existing = verificationRequests.get(token);
-  if (existing) {
-    return existing;
-  }
-
-  const request = apiPost("/api/auth/verify-email", { token }, SuccessMessageDataSchema).then((res) => {
-    if (!res.ok && (res.status === 0 || res.status === 429 || res.status >= 500)) {
-      verificationRequests.delete(token);
-    } else {
-      window.setTimeout(() => {
-        if (verificationRequests.get(token) === request) {
-          verificationRequests.delete(token);
-        }
-      }, VERIFICATION_DEDUP_TTL_MS);
-    }
-    return res;
-  });
-  verificationRequests.set(token, request);
-  return request;
-}
 
 export function VerifyPendingPage(): ReactElement {
   const location = useRouterLocation();
@@ -65,61 +40,75 @@ export function VerifyPendingPage(): ReactElement {
   );
 }
 
-interface VerificationOutcome {
-  readonly token: string;
-  readonly result: ApiClientResult<SuccessMessageData>;
-}
-
 export function VerifyEmailPage(): ReactElement {
   const location = useRouterLocation();
   const params = new URLSearchParams(location.search);
-  const token = params.get("token")?.trim() || "";
   const appId = params.get("app_id")?.trim() || "sso";
   const redirect = params.get("redirect") || "/";
   const qs = buildAuthQuery(appId, redirect);
 
-  const [outcome, setOutcome] = useState<VerificationOutcome | null>(null);
+  const [capturedToken] = useState<string>(() => params.get("token")?.trim() || "");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Scrub the one-time verification token from the browser URL bar and session history
   useEffect(() => {
-    if (!token) {
+    const currentParams = new URLSearchParams(window.location.search);
+    if (!currentParams.has("token")) {
+      return;
+    }
+    currentParams.delete("token");
+    const nextSearch = currentParams.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, []);
+
+  const handleVerify = async (): Promise<void> => {
+    if (!capturedToken) {
       return;
     }
 
-    let cancelled = false;
-    const run = async (): Promise<void> => {
-      const result = await verifyEmailOnce(token);
-      if (!cancelled) {
-        setOutcome({ token, result });
-      }
-    };
-    void run();
+    setError(null);
+    setIsSubmitting(true);
+    const result = await apiPost("/api/auth/verify-email", { token: capturedToken }, SuccessMessageDataSchema);
+    setIsSubmitting(false);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
 
-  const activeOutcome = outcome && outcome.token === token ? outcome.result : null;
-  const isMissingToken = token.length === 0;
-  const isVerifying = !isMissingToken && activeOutcome === null;
+    setSuccessMessage(result.data.message);
+  };
+
+  const isMissingToken = capturedToken.length === 0;
+  const isVerified = successMessage !== null;
 
   return (
-    <AuthShell title="Email verification" subtitle="Confirming your verification token.">
+    <AuthShell title="Email verification" subtitle="Confirm to activate your email address.">
       {isMissingToken ? <AuthAlert tone="danger">No verification token was provided.</AuthAlert> : null}
+      {successMessage ? <AuthAlert tone="success">{successMessage}</AuthAlert> : null}
+      {error ? <AuthAlert tone="danger">{error}</AuthAlert> : null}
 
-      {isVerifying ? (
-        <div className="flex flex-col gap-3 py-2">
-          <Progress value={null} label="Verifying email address..." />
-        </div>
+      {!isMissingToken && !isVerified ? (
+        <Button
+          type="button"
+          variant={ButtonVariants.Primary}
+          disabled={isSubmitting}
+          className="w-full"
+          onClick={() => {
+            void handleVerify();
+          }}
+        >
+          <CheckCircleIcon aria-hidden="true" className="size-4.5" />
+          <span>{isSubmitting ? "Verifying..." : "Verify Email Address"}</span>
+        </Button>
       ) : null}
-
-      {activeOutcome?.ok ? <AuthAlert tone="success">{activeOutcome.data.message}</AuthAlert> : null}
-
-      {activeOutcome && !activeOutcome.ok ? <AuthAlert tone="danger">{activeOutcome.message}</AuthAlert> : null}
 
       <Button
         type="button"
-        variant={activeOutcome?.ok ? ButtonVariants.Primary : ButtonVariants.Secondary}
+        variant={isVerified ? ButtonVariants.Primary : ButtonVariants.Secondary}
         className="w-full"
         onClick={() => {
           navigate(`/login?${qs}`);

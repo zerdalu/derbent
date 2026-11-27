@@ -5,12 +5,14 @@ export const EmailSchema = v.pipe(
   v.string("Email is required."),
   v.transform((value) => value.trim().toLowerCase()),
   v.minLength(1, "Email is required."),
+  v.maxLength(254, "Email address is too long."),
   v.email("Please enter a valid email address."),
 );
 
 export const PasswordSchema = v.pipe(
   v.string("Password is required."),
   v.minLength(8, "Password must be at least 8 characters long."),
+  v.maxLength(128, "Password must not exceed 128 characters."),
 );
 
 export const TotpCodeSchema = v.pipe(
@@ -67,7 +69,11 @@ export type ResetPasswordInput = v.InferOutput<typeof ResetPasswordInputSchema>;
 
 export const ChangePasswordInputSchema = v.pipe(
   v.object({
-    currentPassword: v.pipe(v.string("Current password is required."), v.minLength(1, "Current password is required.")),
+    currentPassword: v.pipe(
+      v.string("Current password is required."),
+      v.minLength(1, "Current password is required."),
+      v.maxLength(128, "Password must not exceed 128 characters."),
+    ),
     newPassword: PasswordSchema,
     confirmNewPassword: v.string("Please confirm your new password."),
   }),

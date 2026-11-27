@@ -100,7 +100,7 @@ export class AuthPasswordService {
   }
 
   async resetPassword(token: string, newPassword: string, ip: string, userAgent: string): Promise<string> {
-    const tokenData = await this.tokenRepo.getResetTokenData(token);
+    const tokenData = await this.tokenRepo.consumeResetToken(token);
     if (!tokenData) {
       await this.auditLogRepo.log({
         action: "password_reset_failed",
@@ -113,7 +113,6 @@ export class AuthPasswordService {
 
     const user = await this.userRepo.findById(tokenData.userId);
     if (!user || user.token_version !== tokenData.tokenVersion) {
-      await this.tokenRepo.deletePasswordResetToken(token);
       await this.auditLogRepo.log({
         action: "password_reset_failed",
         userId: user?.id ?? null,
@@ -126,7 +125,6 @@ export class AuthPasswordService {
     }
 
     if (user.phash.startsWith("OAUTH:")) {
-      await this.tokenRepo.deletePasswordResetToken(token);
       throw new AppError("Password reset is not available for OAuth-only accounts.", 400);
     }
 
@@ -135,12 +133,7 @@ export class AuthPasswordService {
     }
 
     if (user.email_verified === 0) {
-      try {
-        await assertNoVerifiedAccountConflict(this.userRepo, user);
-      } catch (error: unknown) {
-        await this.tokenRepo.deletePasswordResetToken(token);
-        throw error;
-      }
+      await assertNoVerifiedAccountConflict(this.userRepo, user);
     }
 
     const phash = await hashPassword(newPassword, this.hashIterations);
@@ -155,7 +148,6 @@ export class AuthPasswordService {
     }
 
     await this.userTokenVersionRepo.clearUserVersion(user.id);
-    await this.tokenRepo.deletePasswordResetToken(token);
     await this.loginAttemptRepo.clearAttempts(user.email, ip);
 
     await this.auditLogRepo.log({

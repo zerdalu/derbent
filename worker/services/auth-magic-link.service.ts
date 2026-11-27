@@ -39,7 +39,12 @@ export class AuthMagicLinkService {
     }
 
     const user = await this.userRepo.findForLogin(normalizedEmail, appId);
-    const canSend = Boolean(user && user.is_locked === 0 && user.email_verified === 1);
+    let ssoAllowed = true;
+    if (user && user.app === "sso" && appId !== "sso") {
+      const ssoApp = await this.appRepo.findById("sso");
+      ssoAllowed = Boolean(ssoApp && ssoApp.allow_logins === 1);
+    }
+    const canSend = Boolean(user && user.is_locked === 0 && user.email_verified === 1 && ssoAllowed);
 
     await this.auditLogRepo.log({
       action: "magic_link_requested",
@@ -76,7 +81,7 @@ export class AuthMagicLinkService {
       throw new AppError("Logins are currently disabled for this application.", 403);
     }
 
-    const tokenData = await this.tokenRepo.getMagicLinkTokenData(token);
+    const tokenData = await this.tokenRepo.consumeMagicLinkToken(token);
     if (!tokenData) {
       await this.auditLogRepo.log({
         action: "magic_link_failed",
@@ -89,7 +94,6 @@ export class AuthMagicLinkService {
 
     const user = await this.userRepo.findById(tokenData.userId);
     if (!user || user.token_version !== tokenData.tokenVersion) {
-      await this.tokenRepo.deleteMagicLinkToken(token);
       await this.auditLogRepo.log({
         action: "magic_link_failed",
         userId: user?.id ?? null,
@@ -125,12 +129,16 @@ export class AuthMagicLinkService {
       throw new AppError("Forbidden: You do not have access to this app.", 403);
     }
 
-    if (user.email_verified === 0) {
-      await this.tokenRepo.deleteMagicLinkToken(token);
-      throw new AppError("Email verification is required.", 403, "EMAIL_NOT_VERIFIED");
+    if (user.app === "sso" && requiredAppId !== "sso") {
+      const ssoApp = await this.appRepo.findById("sso");
+      if (!ssoApp || ssoApp.allow_logins === 0) {
+        throw new AppError("Single sign-on is currently disabled.", 403);
+      }
     }
 
-    await this.tokenRepo.deleteMagicLinkToken(token);
+    if (user.email_verified === 0) {
+      throw new AppError("Email verification is required.", 403, "EMAIL_NOT_VERIFIED");
+    }
 
     return this.sessionService.handleSuccessfulAuthentication(user, requiredAppId, ip, userAgent, "magic_link");
   }

@@ -207,8 +207,14 @@ export default class DerbentWorker extends WorkerEntrypoint<CloudflareBindings> 
 
     this.ctx.waitUntil(
       (async (): Promise<void> => {
-        const deletedCount = await services.auditLogRepo.prune(retentionDays);
-        services.logger.info(`[CRON] Pruned ${deletedCount} audit logs older than ${retentionDays} days.`);
+        const [deletedLogs, deletedTokens, deletedCounters] = await Promise.all([
+          services.auditLogRepo.prune(retentionDays),
+          services.tokenRepo.pruneExpired(),
+          services.loginAttemptRepo.pruneExpired(),
+        ]);
+        services.logger.info(
+          `[CRON] Pruned ${deletedLogs} audit logs (> ${retentionDays}d), ${deletedTokens} expired tokens, ${deletedCounters} expired counters.`,
+        );
       })(),
     );
   }

@@ -50,6 +50,21 @@ function isHttpOrHttpsUrl(raw: string): boolean {
   }
 }
 
+function isValidCookieDomain(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return true;
+  }
+  if (trimmed.length > 253) {
+    return false;
+  }
+  if (trimmed === "localhost") {
+    return true;
+  }
+  const domainPattern = /^\.?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+  return domainPattern.test(trimmed);
+}
+
 const NullableOptionalUrlSchema = v.optional(
   v.nullable(
     v.union([
@@ -130,7 +145,11 @@ export const AdminUpdateSettingsSchema = v.strictObject({
   LOG_LEVEL: v.optional(v.nullable(v.picklist(["", "debug", "info", "warn", "error", "silent"]))),
   APP_NAME: v.optional(v.nullable(v.string())),
   BASE_URL: NullableOptionalUrlSchema,
-  COOKIE_DOMAIN: v.optional(v.nullable(v.string())),
+  COOKIE_DOMAIN: v.optional(
+    v.nullable(
+      v.pipe(v.string(), v.check(isValidCookieDomain, "COOKIE_DOMAIN must be a valid domain name or localhost.")),
+    ),
+  ),
   RESEND_DOMAIN: v.optional(v.nullable(v.string())),
   RESEND_API_KEY: v.optional(v.nullable(v.string())),
   GITHUB_CLIENT_ID: v.optional(v.nullable(v.string())),

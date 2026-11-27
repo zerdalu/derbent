@@ -51,7 +51,7 @@ export class AuditLogRepository {
     try {
       await this.db
         .prepare(
-          "UPDATE audit_logs SET user_id = '[DELETED_USER]', email = NULL, ip = NULL, user_agent = NULL WHERE user_id = ?",
+          "UPDATE audit_logs SET user_id = '[DELETED_USER]', email = NULL, ip = NULL, user_agent = NULL, details = NULL WHERE user_id = ?",
         )
         .bind(userId)
         .run();

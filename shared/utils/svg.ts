@@ -68,7 +68,6 @@ const ALLOWED_SVG_ATTRIBUTES = new Set([
   "patterncontentunits",
   "patterntransform",
   "id",
-  "class",
   "preserveaspectratio",
   "vector-effect",
   "color",

@@ -22,14 +22,26 @@ type SetupFetchState =
 export function TwoFactorVerifyPage(): ReactElement {
   const location = useRouterLocation();
   const params = new URLSearchParams(location.search);
-  const token = params.get("token")?.trim() || "";
   const appId = params.get("app_id")?.trim() || "sso";
   const redirect = params.get("redirect") || "/";
   const qs = buildAuthQuery(appId, redirect);
 
+  const [capturedToken] = useState<string>(() => params.get("token")?.trim() || "");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Scrub the two-factor challenge token from the browser URL bar and session history
+  useEffect(() => {
+    const currentParams = new URLSearchParams(window.location.search);
+    if (!currentParams.has("token")) {
+      return;
+    }
+    currentParams.delete("token");
+    const nextSearch = currentParams.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, []);
 
   const handleBackClick = (event: MouseEvent<HTMLAnchorElement>): void => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
@@ -41,7 +53,12 @@ export function TwoFactorVerifyPage(): ReactElement {
 
   const submitVerify = async (): Promise<void> => {
     setError(null);
-    const parsed = v.safeParse(TwoFactorVerifyInputSchema, { token, code, appId, redirect });
+    const parsed = v.safeParse(TwoFactorVerifyInputSchema, {
+      token: capturedToken,
+      code,
+      appId,
+      redirect,
+    });
     if (!parsed.success) {
       setError(parsed.issues[0]?.message ?? "Please enter a valid 6-digit code.");
       return;
@@ -64,7 +81,7 @@ export function TwoFactorVerifyPage(): ReactElement {
     void submitVerify();
   };
 
-  if (!token) {
+  if (!capturedToken) {
     return (
       <AuthShell title="Two-factor authentication" subtitle="Your verification challenge is missing or expired.">
         <AuthAlert tone="danger">Please sign in again to start a new two-factor verification.</AuthAlert>

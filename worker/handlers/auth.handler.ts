@@ -15,7 +15,7 @@ import type { ApiResponse } from "@shared/types/api-response";
 import { validationError } from "@worker/handlers/http.utils";
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
-import { buildCookieOptions } from "@worker/utils/cookie";
+import { buildCookieOptions, parseCookieHeaderAll } from "@worker/utils/cookie";
 import {
   clearConflictingSessions,
   getClientInfo,
@@ -24,7 +24,7 @@ import {
   resolveTargetApp,
 } from "@worker/utils/runtime";
 import type { Context } from "hono";
-import { getCookie, setCookie } from "hono/cookie";
+import { setCookie } from "hono/cookie";
 import * as v from "valibot";
 
 export class AuthHandler {
@@ -35,6 +35,7 @@ export class AuthHandler {
       const config = c.get("config");
       const logger = c.get("logger");
       const { ip, userAgent } = getClientInfo(c);
+      const cookieHeader = c.req.header("Cookie") ?? "";
 
       const allApps = await appRepo.findAll();
       const apps: DashboardAppStatus[] = [];
@@ -52,17 +53,20 @@ export class AuthHandler {
         return hasPassword;
       };
 
-      // Verify session_sso at most once and reuse across apps that allow logins
+      // Verify session_sso candidates at most once and reuse across apps that allow logins
       const ssoAppRecord = allApps.find((entry) => entry.id === "sso");
-      const ssoSessionId = getCookie(c, "session_sso");
+      const ssoSessionIds = parseCookieHeaderAll(cookieHeader, "session_sso");
       let verifiedSsoSession: Session | null = null;
 
-      if (ssoSessionId && ssoAppRecord && ssoAppRecord.allow_logins === 1) {
-        try {
-          verifiedSsoSession = await authService.verifySession(ssoSessionId, "sso", ip, userAgent);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            logger.debug(`SSO session verification failed: ${error.message}`);
+      if (ssoAppRecord && ssoAppRecord.allow_logins === 1) {
+        for (const ssoSessionId of ssoSessionIds) {
+          try {
+            verifiedSsoSession = await authService.verifySession(ssoSessionId, "sso", ip, userAgent);
+            break;
+          } catch (error: unknown) {
+            if (error instanceof Error) {
+              logger.debug(`SSO session verification failed: ${error.message}`);
+            }
           }
         }
       }
@@ -75,13 +79,16 @@ export class AuthHandler {
         if (appId === "sso") {
           verifiedSession = verifiedSsoSession;
         } else {
-          const directSessionId = getCookie(c, `session_${appId}`);
-          if (directSessionId && appRecord.allow_logins === 1) {
-            try {
-              verifiedSession = await authService.verifySession(directSessionId, appId, ip, userAgent);
-            } catch (error: unknown) {
-              if (error instanceof Error) {
-                logger.debug(`Direct session verification failed for ${appId}: ${error.message}`);
+          const directSessionIds = parseCookieHeaderAll(cookieHeader, `session_${appId}`);
+          if (appRecord.allow_logins === 1) {
+            for (const directSessionId of directSessionIds) {
+              try {
+                verifiedSession = await authService.verifySession(directSessionId, appId, ip, userAgent);
+                break;
+              } catch (error: unknown) {
+                if (error instanceof Error) {
+                  logger.debug(`Direct session verification failed for ${appId}: ${error.message}`);
+                }
               }
             }
           }

@@ -8,7 +8,10 @@ import type { UserTokenVersionRepository } from "@worker/repositories/user-token
 import type { UserRepository } from "@worker/repositories/user.repository";
 import { AppError } from "@worker/types/errors";
 import type { LoginResult, UserRecord } from "@worker/types/models";
+import { hashSessionRef } from "@worker/utils/crypto";
 import * as v from "valibot";
+
+const MAX_SESSION_AGE_MS = 86400 * 1000;
 
 export interface VerifySessionOptions {
   readonly allowDisabledApp?: boolean;
@@ -85,18 +88,20 @@ export class AuthSessionService {
         appId,
         ip,
         userAgent,
+        tokenVersion: user.token_version,
       });
       return { requires2FA: true, twoFactorToken: token, app: user.app };
     }
 
     const sessionId = await this.createSessionForUser(user, ip, userAgent);
+    const sessionRef = await hashSessionRef(sessionId);
     await this.auditLogRepo.log({
       action: "login_success",
       userId: user.id,
       email: user.email,
       ip,
       userAgent,
-      details: { appId: user.app, sessionId, method },
+      details: { appId: user.app, sessionRef, method },
     });
     return { requires2FA: false, sessionId, app: user.app };
   }
@@ -111,6 +116,11 @@ export class AuthSessionService {
     const session = await this.sessionRepo.get(sessionId);
     if (!session) {
       throw new AppError("Session not found", 401);
+    }
+
+    if (Date.now() - session.createdAt > MAX_SESSION_AGE_MS) {
+      await this.sessionRepo.delete(sessionId);
+      throw new AppError("Session expired", 401);
     }
 
     if (session.appId !== requiredAppId && session.appId !== "sso") {
@@ -144,7 +154,8 @@ export class AuthSessionService {
     }
 
     if (currentIp && session.ip !== currentIp) {
-      const alreadyLogged = await this.tokenRepo.hasLoggedIpChangeNotice(sessionId, currentIp);
+      const sessionRef = await hashSessionRef(sessionId);
+      const alreadyLogged = await this.tokenRepo.hasLoggedIpChangeNotice(sessionRef, currentIp);
       if (!alreadyLogged) {
         await this.auditLogRepo.log({
           action: "security_notice_ip_changed",
@@ -152,9 +163,9 @@ export class AuthSessionService {
           email: session.email,
           ip: currentIp,
           userAgent: currentUserAgent,
-          details: { sessionIp: session.ip, currentIp },
+          details: { sessionRef, sessionIp: session.ip, currentIp },
         });
-        await this.tokenRepo.markIpChangeNoticeLogged(sessionId, currentIp);
+        await this.tokenRepo.markIpChangeNoticeLogged(sessionRef, currentIp);
       }
     }
 
