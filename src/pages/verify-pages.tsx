@@ -1,6 +1,6 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
 import { apiPost } from "@/utils/api-client";
-import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
+import { buildAuthQuery, navigate, scrubSearchParam, useRouterLocation } from "@/utils/router";
 import { CheckCircleIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react";
 import { SuccessMessageDataSchema } from "@shared/schemas/auth";
 import { Button, ButtonVariants } from "@ui/index";
@@ -20,7 +20,7 @@ export function VerifyPendingPage(): ReactElement {
           <EnvelopeSimpleIcon aria-hidden="true" className="size-4.5" />
         </div>
 
-        <p className="font-sans text-xs leading-relaxed text-text-secondary">
+        <p className="font-sans text-sm leading-relaxed text-text-secondary">
           Click the verification link in your inbox to activate your account. The link will expire in{" "}
           <span className="font-mono font-ui text-text-primary tabular-nums">15</span> minutes.
         </p>
@@ -54,14 +54,7 @@ export function VerifyEmailPage(): ReactElement {
 
   // Scrub the one-time verification token from the browser URL bar and session history
   useEffect(() => {
-    const currentParams = new URLSearchParams(window.location.search);
-    if (!currentParams.has("token")) {
-      return;
-    }
-    currentParams.delete("token");
-    const nextSearch = currentParams.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-    window.history.replaceState(null, "", nextUrl);
+    scrubSearchParam("token");
   }, []);
 
   const handleVerify = async (): Promise<void> => {

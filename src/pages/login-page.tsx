@@ -225,7 +225,7 @@ export function LoginPage(): ReactElement {
               onClick={(event) => {
                 handleSpaNavigation(event, `/forgot-password?${qs}`);
               }}
-              className="inline-flex min-h-hit items-center rounded-control px-1 font-sans text-xs font-ui text-text-secondary focus-ring hover:text-text-primary hover:underline"
+              className="inline-flex min-h-hit items-center rounded-control px-1 font-sans text-sm font-ui text-text-secondary focus-ring hover:text-text-primary hover:underline"
             >
               Forgot password?
             </a>
@@ -254,7 +254,7 @@ export function LoginPage(): ReactElement {
         </Button>
       </form>
 
-      <div className="flex flex-col gap-2 text-center font-sans text-xs text-text-secondary">
+      <div className="flex flex-col gap-2 text-center font-sans text-sm text-text-secondary">
         <p>
           Or{" "}
           <a

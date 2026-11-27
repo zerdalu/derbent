@@ -82,8 +82,8 @@ function ToastList(): ReactElement {
             <div className="flex min-w-0 flex-1 items-start gap-2.5">
               <span className={cn("mt-1.5 size-2 shrink-0 rounded-track", indicatorDotClasses[variant])} />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <BaseToast.Title className="font-mono text-xs font-ui tracking-ui text-text-primary" />
-                <BaseToast.Description className="font-sans text-xs text-text-secondary" />
+                <BaseToast.Title className="font-mono text-sm font-ui tracking-ui text-text-primary" />
+                <BaseToast.Description className="font-sans text-sm text-text-secondary" />
                 {toast.actionProps ? (
                   <div className="pt-1.5">
                     <BaseToast.Action

@@ -70,8 +70,8 @@ const buttonVariantClasses: Record<ButtonVariant, string> = {
 const buttonSizeClasses: Record<ButtonSize, string> = {
   xs: "h-control-xs px-control-px-xs text-xs gap-1.5",
   sm: "h-control-sm px-control-px-sm text-xs gap-1.5",
-  md: "h-control-md px-control-px-md text-xs gap-2",
-  lg: "h-control-lg px-control-px-lg text-sm gap-2.5",
+  md: "h-control-md px-control-px-md text-sm gap-2",
+  lg: "h-control-lg px-control-px-lg text-base gap-2.5",
   "icon-xs": "size-control-xs p-0",
   "icon-sm": "size-control-sm p-0",
   "icon-md": "size-control-md p-0",

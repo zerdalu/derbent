@@ -1,4 +1,5 @@
 import derbentIconUrl from "@/assets/icon.svg";
+import { DiamondDotMatrix } from "@/components/diamond-dot-matrix";
 import { NodeFrame, type NodePort } from "@/components/node-frame";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { navigate } from "@/utils/router";
@@ -41,7 +42,7 @@ export function AuthAlert({ tone, children, className }: AuthAlertProps): ReactE
   return (
     <output
       className={cn(
-        "flex items-start gap-2.5 rounded-control border px-control-px-md py-2.5 font-sans text-xs",
+        "flex items-start gap-2.5 rounded-control border px-control-px-md py-2.5 font-sans text-sm",
         toneClasses,
         className,
       )}
@@ -60,10 +61,19 @@ export interface AuthShellProps {
   readonly appName?: string;
   readonly title: string;
   readonly subtitle?: ReactNode;
+  readonly loading?: boolean;
+  readonly loadingLabel?: string;
   readonly children: ReactNode;
 }
 
-export function AuthShell({ appName = "Derbent", title, subtitle, children }: AuthShellProps): ReactElement {
+export function AuthShell({
+  appName = "Derbent",
+  title,
+  subtitle,
+  loading = false,
+  loadingLabel = "Loading",
+  children,
+}: AuthShellProps): ReactElement {
   const handleHomeClick = (event: MouseEvent<HTMLAnchorElement>): void => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
       return;
@@ -84,7 +94,7 @@ export function AuthShell({ appName = "Derbent", title, subtitle, children }: Au
         <div className="absolute size-vault-ring-sm rotate-45 rounded-vault-diamond border border-border-default bg-node-step-inner/35 opacity-70" />
       </div>
 
-      <header className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-6 pt-5 pb-3.5 vt-auth-header md:px-10 md:pt-6">
+      <header className="relative z-10 mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-6 pt-5 pb-3.5 vt-auth-header md:px-10 md:pt-6">
         <a
           href="/"
           onClick={handleHomeClick}
@@ -102,37 +112,47 @@ export function AuthShell({ appName = "Derbent", title, subtitle, children }: Au
         <ThemeToggle />
       </header>
 
-      <div className="mx-auto w-full max-w-4xl px-6 md:px-10">
+      <div className="relative z-10 mx-auto w-full max-w-4xl px-6 md:px-10">
         <Separator />
       </div>
 
-      <main className="mx-auto flex w-full flex-1 flex-col items-center justify-center px-6 py-8 md:px-10">
-        <div className="w-full max-w-md">
-          <NodeFrame
-            active
-            ports={SHELL_PORTS}
-            className="vt-auth-shell"
-            contentClassName="flex flex-col gap-5 p-panel"
-          >
-            <div className="flex flex-col items-center gap-1.5 text-center">
-              <h1 className="font-display text-lg font-heading tracking-heading text-text-primary">{title}</h1>
-              {subtitle ? (
-                <div className="font-sans text-xs leading-relaxed text-text-secondary">{subtitle}</div>
-              ) : null}
-            </div>
+      {loading ? (
+        <main className="pointer-events-none fixed inset-0 flex items-center justify-center">
+          <DiamondDotMatrix label={loadingLabel} />
+        </main>
+      ) : (
+        <main className="mx-auto flex w-full flex-1 flex-col items-center justify-center px-6 py-8 md:px-10">
+          <div className="w-full max-w-lg">
+            <NodeFrame
+              active
+              ports={SHELL_PORTS}
+              className="vt-auth-shell"
+              contentClassName="flex flex-col gap-5 p-panel"
+            >
+              <div className="flex flex-col items-center gap-1.5 text-center">
+                <h1 className="font-display text-xl font-heading tracking-heading text-balance text-text-primary">
+                  {title}
+                </h1>
+                {subtitle ? (
+                  <div className="max-w-sm font-sans text-sm leading-relaxed text-balance text-text-secondary">
+                    {subtitle}
+                  </div>
+                ) : null}
+              </div>
 
-            <Separator />
+              <Separator />
 
-            {children}
-          </NodeFrame>
+              {children}
+            </NodeFrame>
 
-          <footer className="mt-6 flex items-center justify-center gap-2.5 font-mono text-xs tracking-widest text-text-muted uppercase vt-auth-footer">
-            <span className="h-px w-6 bg-border-default" />
-            <span>Security with care and ease</span>
-            <span className="h-px w-6 bg-border-default" />
-          </footer>
-        </div>
-      </main>
+            <footer className="mt-6 flex items-center justify-center gap-2.5 font-mono text-xs tracking-widest text-text-muted uppercase vt-auth-footer">
+              <span className="h-px w-6 bg-border-default" />
+              <span>Security with care and ease</span>
+              <span className="h-px w-6 bg-border-default" />
+            </footer>
+          </div>
+        </main>
+      )}
     </div>
   );
 }

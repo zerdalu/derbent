@@ -14,7 +14,7 @@ export function FieldLabel({ className, ...props }: FieldLabelProps): ReactEleme
   return (
     <BaseField.Label
       className={cn(
-        "font-sans text-xs font-ui tracking-ui text-text-secondary select-none",
+        "font-sans text-sm font-ui tracking-ui text-text-secondary select-none",
         "data-disabled:opacity-disabled",
         className,
       )}
@@ -37,7 +37,7 @@ export function FieldDescription({ className, ...props }: FieldDescriptionProps)
 export type FieldErrorProps = ComponentProps<typeof BaseField.Error>;
 
 export function FieldError({ className, ...props }: FieldErrorProps): ReactElement {
-  return <BaseField.Error className={cn("font-sans text-xs font-ui text-status-danger-text", className)} {...props} />;
+  return <BaseField.Error className={cn("font-sans text-sm font-ui text-status-danger-text", className)} {...props} />;
 }
 
 export type FieldControlProps = ComponentProps<typeof BaseField.Control>;

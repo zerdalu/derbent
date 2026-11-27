@@ -1,0 +1,119 @@
+@layer base {
+  :root {
+    color-scheme: light dark;
+
+    /* Control Density & Panel Spacing Tokens */
+    --control-h-xs: 1.5rem;
+    --control-h-sm: 1.875rem;
+    --control-h-md: 2.25rem;
+    --control-h-lg: 2.625rem;
+    --control-px-xs: 0.5rem;
+    --control-px-sm: 0.625rem;
+    --control-px-md: 0.875rem;
+    --control-px-lg: 1.125rem;
+    --panel-p-sm: 0.875rem;
+    --panel-p: 1.25rem;
+    --panel-p-lg: 1.5rem;
+
+    /* Interactive Control Geometry Tokens */
+    --hit-target-min: 1.5rem;
+    --checkbox-size: 1.125rem;
+    --switch-w: 2.75rem;
+    --switch-h: 1.5rem;
+    --switch-pad: 0.125rem;
+    --switch-thumb: calc(var(--switch-h) - (var(--switch-pad) * 2) - 2px);
+    --switch-travel: calc(var(--switch-w) - var(--switch-h));
+    --slider-track-h: 0.5rem;
+    --slider-thumb: 1.125rem;
+    --progress-track-h: 0.5rem;
+
+    /* Focus Ring & State Tokens */
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+    --focus-ring-offset-tight: 1px;
+    --opacity-disabled: 0.45;
+
+    /* Obsidian Photonic Canvas & Specular Surface Gradients */
+    --surface-canvas-image:
+      radial-gradient(
+        48% 48% at 50% 50%,
+        light-dark(oklch(1 0 0 / 0.65), oklch(0.24 0.005 265 / 0.42)) 0%,
+        transparent 72%
+      ),
+      radial-gradient(
+        80% 60% at 50% 0%,
+        light-dark(oklch(0.88 0.004 265 / 0.35), oklch(0.98 0 0 / 0.04)) 0%,
+        transparent 64%
+      );
+    --node-surface-image: linear-gradient(
+      180deg,
+      light-dark(oklch(1 0 0 / 0.85), oklch(1 0 0 / 0.055)) 0%,
+      light-dark(oklch(0.97 0.002 265 / 0.4), oklch(0.14 0.004 265 / 0.02)) 38%,
+      light-dark(oklch(0.94 0.003 265 / 0.2), oklch(0.08 0.003 265 / 0.35)) 100%
+    );
+    --node-featured-image:
+      radial-gradient(
+        85% 70% at 50% 0%,
+        light-dark(oklch(0.88 0.005 265 / 0.6), oklch(1 0 0 / 0.14)) 0%,
+        transparent 62%
+      ),
+      linear-gradient(
+        180deg,
+        light-dark(oklch(0.96 0.003 265 / 0.98), oklch(0.21 0.005 265 / 0.96)) 0%,
+        light-dark(oklch(0.92 0.004 265 / 0.98), oklch(0.13 0.004 265 / 0.98)) 100%
+      );
+    --scrollbar-size: 6px;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  #root {
+    isolation: isolate;
+  }
+
+  body {
+    position: relative;
+    font-family: var(--font-sans);
+    background-color: var(--color-surface-canvas);
+    background-image: var(--surface-canvas-image);
+    color: var(--color-text-primary);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-default) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-default);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-border-strong);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-accent-primary);
+  }
+}

@@ -24,7 +24,7 @@ export function QrCode({ value, label = "Two-factor authenticator QR code", clas
       <output
         aria-label={label}
         className={cn(
-          "inline-flex size-48 items-center justify-center rounded-panel border border-border-default bg-surface-100 p-4 text-center font-sans text-xs text-text-secondary shadow-control",
+          "inline-flex size-48 items-center justify-center rounded-panel border border-border-default bg-surface-100 p-4 text-center font-sans text-sm text-text-secondary shadow-control",
           className,
         )}
       >

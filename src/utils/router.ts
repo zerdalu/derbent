@@ -72,16 +72,48 @@ function getSnapshot(): RouterLocation {
     return cachedSnapshot;
   }
 
-  const nextHref = `${window.location.pathname}${window.location.search}`;
+  const pathname = window.location.pathname || "/";
+  const nextHref = `${pathname}${window.location.search}`;
   if (nextHref !== cachedHref) {
     cachedHref = nextHref;
     cachedSnapshot = {
-      pathname: window.location.pathname || "/",
+      pathname,
       search: window.location.search,
     };
   }
 
   return cachedSnapshot;
+}
+
+export function stripSearchParam(search: string, paramName: string): string {
+  const params = new URLSearchParams(search);
+  params.delete(paramName);
+  return params.toString();
+}
+
+export function scrubSearchParam(paramName: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const currentParams = new URLSearchParams(window.location.search);
+  if (!currentParams.has(paramName)) {
+    return;
+  }
+
+  currentParams.delete(paramName);
+  const nextSearch = currentParams.toString();
+  const normalizedSearch = nextSearch ? `?${nextSearch}` : "";
+  const pathname = window.location.pathname || "/";
+  const nextUrl = `${pathname}${normalizedSearch}`;
+
+  window.history.replaceState(null, "", nextUrl);
+  cachedHref = nextUrl;
+  cachedSnapshot = {
+    pathname,
+    search: normalizedSearch,
+  };
+  notifyListeners();
 }
 
 export function navigate(to: string, options: NavigateOptions = {}): void {
@@ -98,7 +130,7 @@ export function navigate(to: string, options: NavigateOptions = {}): void {
     return;
   }
 
-  const currentHref = `${window.location.pathname}${window.location.search}`;
+  const currentHref = `${window.location.pathname || "/"}${window.location.search}`;
   if (to === currentHref) {
     return;
   }

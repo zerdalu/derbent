@@ -35,7 +35,6 @@ import {
   MenuItem,
   MenuSeparator,
   MenuTrigger,
-  Progress,
   Separator,
   toastManager,
   Tooltip,
@@ -114,12 +113,12 @@ function AppRow({
 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-display text-sm font-heading tracking-heading text-text-primary">
+            <span className="truncate font-display text-base font-heading tracking-heading text-text-primary">
               {app.config.name}
             </span>
             {isThisRowSso ? <Badge variant={BadgeVariants.Accent}>SSO</Badge> : null}
           </div>
-          <p className="truncate font-sans text-xs text-text-secondary">
+          <p className="truncate font-sans text-sm text-text-secondary">
             {app.session ? app.session.email : app.config.description || "Sign in to access application"}
           </p>
         </div>
@@ -349,17 +348,13 @@ export function DashboardPage(): ReactElement {
       appName={dashboard?.appName}
       title="Identity & Access"
       subtitle="Manage your identity and access across connected applications."
+      loading={isLoading}
+      loadingLabel="Loading session status"
     >
       {successMessage ? <AuthAlert tone="success">{successMessage}</AuthAlert> : null}
       {error ? <AuthAlert tone="danger">{error}</AuthAlert> : null}
 
-      {isLoading ? (
-        <div className="py-3">
-          <Progress value={null} label="Loading session status..." />
-        </div>
-      ) : null}
-
-      {!isLoading && dashboard ? (
+      {dashboard ? (
         <div className="flex flex-col divide-y divide-border-subtle">
           {ssoApp ? (
             <AppRow
@@ -394,14 +389,14 @@ export function DashboardPage(): ReactElement {
         </div>
       ) : null}
 
-      {!isLoading && dashboard?.hasAnySession ? (
+      {dashboard?.hasAnySession ? (
         <>
           <Separator />
           <div className="flex items-center justify-end">
             <Button
               type="button"
               variant={ButtonVariants.Ghost}
-              size={ButtonSizes.Xs}
+              size={ButtonSizes.Sm}
               disabled={isActionBusy}
               onClick={() => {
                 setPendingConfirm({ kind: "logout_all_accounts" });

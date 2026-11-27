@@ -1,0 +1,185 @@
+@custom-variant hover-fine {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
+/* Control Density Utilities */
+@utility h-control-xs {
+  height: var(--control-h-xs);
+}
+
+@utility h-control-sm {
+  height: var(--control-h-sm);
+}
+
+@utility h-control-md {
+  height: var(--control-h-md);
+}
+
+@utility h-control-lg {
+  height: var(--control-h-lg);
+}
+
+@utility min-h-control-sm {
+  min-height: var(--control-h-sm);
+}
+
+@utility size-control-xs {
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+}
+
+@utility size-control-sm {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+@utility size-control-md {
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+}
+
+@utility size-control-lg {
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+}
+
+@utility px-control-px-xs {
+  padding-inline: var(--control-px-xs);
+}
+
+@utility px-control-px-sm {
+  padding-inline: var(--control-px-sm);
+}
+
+@utility px-control-px-md {
+  padding-inline: var(--control-px-md);
+}
+
+@utility px-control-px-lg {
+  padding-inline: var(--control-px-lg);
+}
+
+/* Panel Spacing Utilities */
+@utility p-panel-sm {
+  padding: var(--panel-p-sm);
+}
+
+@utility p-panel {
+  padding: var(--panel-p);
+}
+
+@utility p-panel-lg {
+  padding: var(--panel-p-lg);
+}
+
+@utility px-panel {
+  padding-inline: var(--panel-p);
+}
+
+@utility py-panel-sm {
+  padding-block: var(--panel-p-sm);
+}
+
+/* Spatial Obsidian Vault Utilities */
+@utility bg-node-glass {
+  background-color: var(--color-node-surface);
+  background-image: var(--node-surface-image);
+}
+
+@utility bg-node-featured {
+  background-image: var(--node-featured-image);
+}
+
+@utility size-vault-ring-sm {
+  width: 22rem;
+  height: 22rem;
+}
+
+@utility size-vault-ring-md {
+  width: 30rem;
+  height: 30rem;
+}
+
+@utility size-vault-ring-lg {
+  width: 38rem;
+  height: 38rem;
+}
+
+/* Hit Target & Control Geometry Utilities */
+@utility min-h-hit {
+  min-height: var(--hit-target-min);
+}
+
+@utility min-w-hit {
+  min-width: var(--hit-target-min);
+}
+
+@utility hit-target {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: var(--hit-target-min);
+    min-height: var(--hit-target-min);
+    translate: -50% -50%;
+  }
+}
+
+@utility size-checkbox {
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+}
+
+@utility size-switch {
+  width: var(--switch-w);
+  height: var(--switch-h);
+  padding: var(--switch-pad);
+}
+
+@utility size-switch-thumb {
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
+}
+
+@utility h-slider-track {
+  height: var(--slider-track-h);
+}
+
+@utility size-slider-thumb {
+  width: var(--slider-thumb);
+  height: var(--slider-thumb);
+}
+
+@utility h-progress-track {
+  height: var(--progress-track-h);
+}
+
+/* Focus Ring & Disabled State Utilities */
+@utility focus-ring {
+  &:focus-visible {
+    outline-style: solid;
+    outline-width: var(--focus-ring-width);
+    outline-offset: var(--focus-ring-offset);
+    outline-color: var(--color-border-focus);
+  }
+}
+
+@utility focus-ring-tight {
+  &:focus-visible {
+    outline-style: solid;
+    outline-width: var(--focus-ring-width);
+    outline-offset: var(--focus-ring-offset-tight);
+    outline-color: var(--color-border-focus);
+  }
+}
+
+@utility opacity-disabled {
+  opacity: var(--opacity-disabled);
+}

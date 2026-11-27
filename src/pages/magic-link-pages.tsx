@@ -1,6 +1,6 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
 import { apiPost } from "@/utils/api-client";
-import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
+import { buildAuthQuery, navigate, scrubSearchParam, useRouterLocation } from "@/utils/router";
 import { MagicWandIcon, SignInIcon } from "@phosphor-icons/react";
 import { LoginResultDataSchema, MagicLinkRequestInputSchema, SuccessMessageDataSchema } from "@shared/schemas/auth";
 import { Button, ButtonVariants, Field, FieldLabel, Input } from "@ui/index";
@@ -99,7 +99,7 @@ export function MagicLinkPage(): ReactElement {
         </Button>
       </form>
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         <a
           href={`/login?${qs}`}
           onClick={handleBackClick}
@@ -125,14 +125,7 @@ export function VerifyMagicLinkPage(): ReactElement {
 
   // Scrub the one-time token from the browser URL bar and session history
   useEffect(() => {
-    const currentParams = new URLSearchParams(window.location.search);
-    if (!currentParams.has("token")) {
-      return;
-    }
-    currentParams.delete("token");
-    const nextSearch = currentParams.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-    window.history.replaceState(null, "", nextUrl);
+    scrubSearchParam("token");
   }, []);
 
   const handleConfirm = async (): Promise<void> => {

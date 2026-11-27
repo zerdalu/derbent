@@ -14,8 +14,9 @@ Self-hosted authentication and SSO engine for Cloudflare Workers, powered by Rea
 Browser / SPA (React + Base UI)
   │
   ▼
-Derbent Worker (/api/*, /auth/*) ──► D1 (users, apps, settings, audit_logs)
-  ▲                               ├── KV (sessions, tokens, config cache, rate limits)
+Derbent Worker (/api/*, /auth/*) ──► D1 (users, apps, settings, audit_logs, auth_tokens, auth_counters)
+  ▲                               ├── KV (sessions, token versions, config cache, admin blocks)
+  │                               ├── Rate Limiting (AUTH_LIMITER)
   │                               └── Queue (derbent-email-queue ──► Resend)
 Worker RPC (WorkerEntrypoint)
   │
@@ -30,7 +31,7 @@ Consuming App Worker ──► Cloudflare Cache API
 - `worker/` — Cloudflare Worker (`DerbentWorker extends WorkerEntrypoint`), Hono API handlers, services, repositories, and middleware
 - `src/` — React 19 SPA pages, History-API router, API client, QR generator, and theme state
 - `ui/` — Base UI + Tailwind CSS v4 design system primitives
-- `migrations/` — D1 SQL schema migrations (`0001_init.sql`)
+- `migrations/` — D1 SQL schema migrations (`0001_init.sql`, `0002_atomic_auth_state.sql`)
 
 ---
 
@@ -50,7 +51,7 @@ Update `cloudflare.config.ts` with your D1 database, KV namespace, Queue (`derbe
 pnpm run cf-typegen
 ```
 
-Apply the initial D1 schema migration locally:
+Apply the D1 schema migrations locally:
 
 ```bash
 npx wrangler d1 migrations apply db-derbent --local
@@ -132,7 +133,7 @@ Bind to the `derbent` Worker in your consuming app's Cloudflare config (`wrangle
 
 ### 2. Verification Helper
 
-Pass the user's raw `Cookie` header, target `appId`, `cf-connecting-ip`, and `user-agent` to `DERBENT_SERVICE.verifySession(...)`. Consuming apps can optionally cache verified sessions in `caches.default` using a SHA-256 hash of the `Cookie` header (Cloudflare Cache API ignores `Vary: Cookie`):
+Pass the user's raw `Cookie` header, target `appId`, `cf-connecting-ip`, and `user-agent` to `DERBENT_SERVICE.verifySession(...)`. Consuming apps can optionally cache verified sessions in `caches.default` using a SHA-256 hash of both the `Cookie` and `User-Agent` headers (Cloudflare Cache API ignores `Vary: Cookie`, and binding the cache key to `User-Agent` preserves hijack detection):
 
 ```typescript
 import type { Context } from "hono";
@@ -150,15 +151,16 @@ export async function verifyWithDerbent(c: Context, appId: string) {
     return c.json({ error: "Missing User-Agent" }, 400);
   }
 
-  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cookie));
-  const cookieHash = Array.from(new Uint8Array(hashBuffer))
+  const hashInput = `${cookie}\0${clientUa}`;
+  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(hashInput));
+  const authHash = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
   const currentUrl = new URL(c.req.url);
   const cacheUrl = new URL(`${currentUrl.origin}/_internal_auth_cache`);
   cacheUrl.searchParams.set("app_id", appId);
-  cacheUrl.searchParams.set("cookie_hash", cookieHash);
+  cacheUrl.searchParams.set("auth_hash", authHash);
   const cacheKey = new Request(cacheUrl.toString());
 
   const cache = caches.default;
@@ -288,8 +290,8 @@ All `/api/admin/*` endpoints require `Authorization: Bearer <DERBENT_API_KEY>` (
 - **SSO Priority:** Once an `sso` account exists for an email, app-specific accounts for that email cannot be created, and OAuth auto-provisioning and password resets will not violate SSO/app account uniqueness.
 - **Version-Bound Tokens:** Email verification, password reset, and magic-link tokens are bound to `token_version` and paired with per-user email cooldowns so password overwrites or session revocations immediately invalidate older links.
 - **Hijack Protection:** Sessions verify `User-Agent` consistency, active application login availability, and `token_version` revocation state, with debounced IP-change audit logging.
-- **Abuse Controls:** Scoped IP rate limiting (`AUTH_LIMITER`), isolated failed-auth rate limiting on `/api/admin/*`, enforced per-email+IP and global per-email login attempt lockouts, single-use TOTP replay guards with per-user attempt limits, strict redirect sanitization, and allowlist-based SVG XSS validation with size caps.
-- **Scheduled Maintenance:** Daily cron (`0 0 * * *`) prunes `audit_logs` older than `AUDIT_LOG_RETENTION_DAYS`.
+- **Abuse Controls:** IP rate limiting (`AUTH_LIMITER`) on state-changing auth and OAuth endpoints, isolated failed-auth rate limiting on `/api/admin/*`, atomic D1-backed per-email+IP and global per-email login attempt lockouts, single-use TOTP replay guards with per-user attempt limits, strict redirect sanitization, and allowlist-based SVG XSS validation with size caps.
+- **Scheduled Maintenance:** Daily cron (`0 0 * * *`) prunes `audit_logs` older than `AUDIT_LOG_RETENTION_DAYS` along with expired rows from `auth_tokens` and `auth_counters`.
 
 ---
 

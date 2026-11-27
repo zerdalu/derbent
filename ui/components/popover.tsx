@@ -58,7 +58,7 @@ export type PopoverTitleProps = ComponentProps<typeof BasePopover.Title>;
 export function PopoverTitle({ className, ...props }: PopoverTitleProps): ReactElement {
   return (
     <BasePopover.Title
-      className={cn("font-display text-sm font-heading tracking-heading text-text-primary", className)}
+      className={cn("font-display text-base font-heading tracking-heading text-text-primary", className)}
       {...props}
     />
   );
@@ -67,7 +67,7 @@ export function PopoverTitle({ className, ...props }: PopoverTitleProps): ReactE
 export type PopoverDescriptionProps = ComponentProps<typeof BasePopover.Description>;
 
 export function PopoverDescription({ className, ...props }: PopoverDescriptionProps): ReactElement {
-  return <BasePopover.Description className={cn("mt-1 font-sans text-xs text-text-secondary", className)} {...props} />;
+  return <BasePopover.Description className={cn("mt-1 font-sans text-sm text-text-secondary", className)} {...props} />;
 }
 
 export type PopoverCloseProps = ComponentProps<typeof BasePopover.Close>;

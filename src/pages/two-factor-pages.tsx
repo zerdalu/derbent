@@ -1,7 +1,7 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
 import { QrCode } from "@/components/qr-code";
 import { apiGet, apiPost } from "@/utils/api-client";
-import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
+import { buildAuthQuery, navigate, scrubSearchParam, useRouterLocation } from "@/utils/router";
 import { ShieldCheckIcon } from "@phosphor-icons/react";
 import {
   RedirectResultDataSchema,
@@ -33,14 +33,7 @@ export function TwoFactorVerifyPage(): ReactElement {
 
   // Scrub the two-factor challenge token from the browser URL bar and session history
   useEffect(() => {
-    const currentParams = new URLSearchParams(window.location.search);
-    if (!currentParams.has("token")) {
-      return;
-    }
-    currentParams.delete("token");
-    const nextSearch = currentParams.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-    window.history.replaceState(null, "", nextUrl);
+    scrubSearchParam("token");
   }, []);
 
   const handleBackClick = (event: MouseEvent<HTMLAnchorElement>): void => {
@@ -121,7 +114,7 @@ export function TwoFactorVerifyPage(): ReactElement {
             onChange={(event) => {
               setCode(event.target.value.replace(/[^0-9]/g, ""));
             }}
-            className="text-center font-mono text-sm tracking-widest tabular-nums"
+            className="text-center font-mono text-base tracking-widest tabular-nums"
             required
           />
         </Field>
@@ -132,7 +125,7 @@ export function TwoFactorVerifyPage(): ReactElement {
         </Button>
       </form>
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         <a
           href={`/login?${qs}`}
           onClick={handleBackClick}
@@ -257,8 +250,8 @@ export function TwoFactorSetupPage(): ReactElement {
             <QrCode value={setupState.otpauthUrl} />
 
             <div className="w-full text-center">
-              <p className="mb-1.5 font-sans text-xs text-text-secondary">Or enter this setup key manually:</p>
-              <code className="block rounded-control border border-border-default bg-surface-100 px-3 py-2 font-mono text-xs font-ui tracking-widest text-text-primary tabular-nums select-all">
+              <p className="mb-1.5 font-sans text-sm text-text-secondary">Or enter this setup key manually:</p>
+              <code className="block rounded-control border border-border-default bg-surface-100 px-3 py-2 font-mono text-sm font-ui tracking-widest text-text-primary tabular-nums select-all">
                 {formattedSecret}
               </code>
             </div>
@@ -279,7 +272,7 @@ export function TwoFactorSetupPage(): ReactElement {
                 onChange={(event) => {
                   setCode(event.target.value.replace(/[^0-9]/g, ""));
                 }}
-                className="text-center font-mono text-sm tracking-widest tabular-nums"
+                className="text-center font-mono text-base tracking-widest tabular-nums"
                 required
               />
             </Field>
@@ -294,7 +287,7 @@ export function TwoFactorSetupPage(): ReactElement {
       {setupState && setupState.enabled ? (
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between rounded-control border border-border-subtle bg-surface-sunken/60 px-control-px-md py-2.5">
-            <span className="font-sans text-xs text-text-secondary">Current status</span>
+            <span className="font-sans text-sm text-text-secondary">Current status</span>
             <Badge variant={BadgeVariants.Success}>Enabled</Badge>
           </div>
 
@@ -313,7 +306,7 @@ export function TwoFactorSetupPage(): ReactElement {
                 onChange={(event) => {
                   setCode(event.target.value.replace(/[^0-9]/g, ""));
                 }}
-                className="text-center font-mono text-sm tracking-widest tabular-nums"
+                className="text-center font-mono text-base tracking-widest tabular-nums"
                 required
               />
             </Field>
@@ -325,7 +318,7 @@ export function TwoFactorSetupPage(): ReactElement {
         </div>
       ) : null}
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         <a
           href="/"
           onClick={handleBackClick}

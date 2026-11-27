@@ -91,7 +91,7 @@ export function SelectItem({ className, children, ...props }: SelectItemProps): 
   return (
     <BaseSelect.Item
       className={cn(
-        "relative flex min-h-control-sm min-w-hit cursor-pointer items-center justify-between gap-2 rounded-control px-control-px-sm py-1.5 font-sans text-xs text-text-secondary outline-none select-none",
+        "relative flex min-h-control-sm min-w-hit cursor-pointer items-center justify-between gap-2 rounded-control px-control-px-sm py-1.5 font-sans text-sm text-text-secondary outline-none select-none",
         "data-highlighted:bg-surface-hover data-highlighted:text-text-primary",
         "data-selected:font-ui data-selected:text-text-primary",
         "data-disabled:pointer-events-none data-disabled:opacity-disabled",

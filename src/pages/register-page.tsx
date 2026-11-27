@@ -171,7 +171,7 @@ export function RegisterPage(): ReactElement {
         </Button>
       </form>
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         Already have an account?{" "}
         <a
           href={`/login?${qs}`}

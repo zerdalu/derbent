@@ -1,6 +1,6 @@
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
 import { apiGet, apiPost } from "@/utils/api-client";
-import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
+import { buildAuthQuery, navigate, scrubSearchParam, useRouterLocation } from "@/utils/router";
 import { KeyIcon } from "@phosphor-icons/react";
 import {
   ChangePasswordInputSchema,
@@ -107,7 +107,7 @@ export function ForgotPasswordPage(): ReactElement {
         </Button>
       </form>
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         <a
           href={`/login?${qs}`}
           onClick={handleBackClick}
@@ -132,14 +132,7 @@ export function ResetPasswordPage(): ReactElement {
 
   // Scrub the password reset token from the browser URL bar and session history
   useEffect(() => {
-    const currentParams = new URLSearchParams(window.location.search);
-    if (!currentParams.has("token")) {
-      return;
-    }
-    currentParams.delete("token");
-    const nextSearch = currentParams.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`;
-    window.history.replaceState(null, "", nextUrl);
+    scrubSearchParam("token");
   }, []);
 
   const submitReset = async (): Promise<void> => {
@@ -412,7 +405,7 @@ export function ChangePasswordPage(): ReactElement {
         </form>
       ) : null}
 
-      <p className="text-center font-sans text-xs text-text-secondary">
+      <p className="text-center font-sans text-sm text-text-secondary">
         <a
           href="/"
           onClick={handleBackClick}

@@ -89,7 +89,7 @@ export function DialogTitle({ className, ...props }: DialogTitleProps): ReactEle
 export type DialogDescriptionProps = ComponentProps<typeof BaseDialog.Description>;
 
 export function DialogDescription({ className, ...props }: DialogDescriptionProps): ReactElement {
-  return <BaseDialog.Description className={cn("font-sans text-xs text-text-secondary", className)} {...props} />;
+  return <BaseDialog.Description className={cn("font-sans text-sm text-text-secondary", className)} {...props} />;
 }
 
 export type DialogCloseProps = ComponentProps<typeof BaseDialog.Close>;

@@ -26,7 +26,7 @@ export type CardTitleProps = HTMLAttributes<HTMLHeadingElement>;
 
 export function CardTitle({ className, children, ...props }: CardTitleProps): ReactElement {
   return (
-    <h3 className={cn("font-display text-sm font-heading tracking-heading text-text-primary", className)} {...props}>
+    <h3 className={cn("font-display text-base font-heading tracking-heading text-text-primary", className)} {...props}>
       {children}
     </h3>
   );
@@ -35,7 +35,7 @@ export function CardTitle({ className, children, ...props }: CardTitleProps): Re
 export type CardDescriptionProps = HTMLAttributes<HTMLParagraphElement>;
 
 export function CardDescription({ className, ...props }: CardDescriptionProps): ReactElement {
-  return <p className={cn("font-sans text-xs text-text-secondary", className)} {...props} />;
+  return <p className={cn("font-sans text-sm text-text-secondary", className)} {...props} />;
 }
 
 export type CardContentProps = HTMLAttributes<HTMLDivElement>;
