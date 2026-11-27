@@ -1,6 +1,11 @@
 import type { HealthData, RpcLogoutResult, RpcVerifyResult } from "@shared/schemas/auth";
 import type { ApiResponse } from "@shared/types/api-response";
+import { AdminUserHandler } from "@worker/handlers/admin-user.handler";
 import { AdminHandler } from "@worker/handlers/admin.handler";
+import { AuthMagicLinkHandler } from "@worker/handlers/auth-magic-link.handler";
+import { AuthPasswordHandler } from "@worker/handlers/auth-password.handler";
+import { AuthSessionHandler } from "@worker/handlers/auth-session.handler";
+import { AuthTwoFactorHandler } from "@worker/handlers/auth-two-factor.handler";
 import { AuthHandler } from "@worker/handlers/auth.handler";
 import { OAuthHandler } from "@worker/handlers/oauth.handler";
 import { configMiddleware, resolveEffectiveConfig } from "@worker/middleware/config.middleware";
@@ -73,22 +78,22 @@ authApiRoutes.get("/context", (c) => AuthHandler.getAuthContext(c));
 
 authApiRoutes.post("/login", rateLimit(), (c) => AuthHandler.login(c));
 authApiRoutes.post("/register", rateLimit(), (c) => AuthHandler.register(c));
-authApiRoutes.post("/logout", rateLimit(), (c) => AuthHandler.logout(c));
-authApiRoutes.post("/logout-all", rateLimit(), (c) => AuthHandler.logoutAll(c));
-authApiRoutes.post("/logout-all-email", rateLimit(), (c) => AuthHandler.logoutAllByEmail(c));
+authApiRoutes.post("/logout", rateLimit(), (c) => AuthSessionHandler.logout(c));
+authApiRoutes.post("/logout-all", rateLimit(), (c) => AuthSessionHandler.logoutAll(c));
+authApiRoutes.post("/logout-all-email", rateLimit(), (c) => AuthSessionHandler.logoutAllByEmail(c));
 
 authApiRoutes.post("/verify-email", rateLimit(), (c) => AuthHandler.verifyEmail(c));
-authApiRoutes.post("/forgot-password", rateLimit(), (c) => AuthHandler.forgotPassword(c));
-authApiRoutes.post("/reset-password", rateLimit(), (c) => AuthHandler.resetPassword(c));
-authApiRoutes.post("/change-password", rateLimit(), (c) => AuthHandler.changePassword(c));
+authApiRoutes.post("/forgot-password", rateLimit(), (c) => AuthPasswordHandler.forgotPassword(c));
+authApiRoutes.post("/reset-password", rateLimit(), (c) => AuthPasswordHandler.resetPassword(c));
+authApiRoutes.post("/change-password", rateLimit(), (c) => AuthPasswordHandler.changePassword(c));
 
-authApiRoutes.post("/magic-link/request", rateLimit(), (c) => AuthHandler.requestMagicLink(c));
-authApiRoutes.post("/magic-link/verify", rateLimit(), (c) => AuthHandler.verifyMagicLink(c));
+authApiRoutes.post("/magic-link/request", rateLimit(), (c) => AuthMagicLinkHandler.requestMagicLink(c));
+authApiRoutes.post("/magic-link/verify", rateLimit(), (c) => AuthMagicLinkHandler.verifyMagicLink(c));
 
-authApiRoutes.get("/2fa/setup", (c) => AuthHandler.getTwoFactorSetup(c));
-authApiRoutes.post("/2fa/enable", rateLimit(), (c) => AuthHandler.enableTwoFactor(c));
-authApiRoutes.post("/2fa/disable", rateLimit(), (c) => AuthHandler.disableTwoFactor(c));
-authApiRoutes.post("/2fa/verify", rateLimit(), (c) => AuthHandler.verifyTwoFactorLogin(c));
+authApiRoutes.get("/2fa/setup", (c) => AuthTwoFactorHandler.getTwoFactorSetup(c));
+authApiRoutes.post("/2fa/enable", rateLimit(), (c) => AuthTwoFactorHandler.enableTwoFactor(c));
+authApiRoutes.post("/2fa/disable", rateLimit(), (c) => AuthTwoFactorHandler.disableTwoFactor(c));
+authApiRoutes.post("/2fa/verify", rateLimit(), (c) => AuthTwoFactorHandler.verifyTwoFactorLogin(c));
 
 app.route("/api/auth", authApiRoutes);
 
@@ -98,9 +103,9 @@ app.get("/auth/github/callback", rateLimit(), (c) => OAuthHandler.handleGitHubCa
 app.get("/auth/google", rateLimit(), (c) => OAuthHandler.handleGoogleLogin(c));
 app.get("/auth/google/callback", rateLimit(), (c) => OAuthHandler.handleGoogleCallback(c));
 
-// Admin Dashboard API Routes
+// Admin Dashboard API Routes (failed auth attempts are rate-limited inside adminAuth)
 const adminRoutes = new Hono<HonoEnv>();
-adminRoutes.use("*", rateLimit(), adminAuth());
+adminRoutes.use("*", adminAuth());
 
 adminRoutes.get("/stats", (c) => AdminHandler.getStats(c));
 adminRoutes.get("/settings", (c) => AdminHandler.getSettings(c));
@@ -112,17 +117,17 @@ adminRoutes.post("/apps", (c) => AdminHandler.createApp(c));
 adminRoutes.patch("/apps/:id", (c) => AdminHandler.updateApp(c));
 adminRoutes.delete("/apps/:id", (c) => AdminHandler.deleteApp(c));
 
-adminRoutes.get("/users", (c) => AdminHandler.getUsers(c));
-adminRoutes.get("/users/:id", (c) => AdminHandler.getUser(c));
-adminRoutes.patch("/users/:id", (c) => AdminHandler.updateUser(c));
-adminRoutes.post("/users/:id/password", (c) => AdminHandler.forceResetPassword(c));
-adminRoutes.delete("/users/:id/2fa", (c) => AdminHandler.disable2FA(c));
-adminRoutes.delete("/users/:id", (c) => AdminHandler.deleteUser(c));
-adminRoutes.delete("/users/:id/sessions", (c) => AdminHandler.revokeSessions(c));
-adminRoutes.post("/users/:id/lock", (c) => AdminHandler.lockAccount(c));
+adminRoutes.get("/users", (c) => AdminUserHandler.getUsers(c));
+adminRoutes.get("/users/:id", (c) => AdminUserHandler.getUser(c));
+adminRoutes.patch("/users/:id", (c) => AdminUserHandler.updateUser(c));
+adminRoutes.post("/users/:id/password", (c) => AdminUserHandler.forceResetPassword(c));
+adminRoutes.delete("/users/:id/2fa", (c) => AdminUserHandler.disable2FA(c));
+adminRoutes.delete("/users/:id", (c) => AdminUserHandler.deleteUser(c));
+adminRoutes.delete("/users/:id/sessions", (c) => AdminUserHandler.revokeSessions(c));
+adminRoutes.post("/users/:id/lock", (c) => AdminUserHandler.lockAccount(c));
 
 adminRoutes.get("/audit-logs", (c) => AdminHandler.getAuditLogs(c));
-adminRoutes.get("/users/:id/audit-logs", (c) => AdminHandler.getUserAuditLogs(c));
+adminRoutes.get("/users/:id/audit-logs", (c) => AdminUserHandler.getUserAuditLogs(c));
 
 app.route("/api/admin", adminRoutes);
 

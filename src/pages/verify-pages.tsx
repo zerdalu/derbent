@@ -6,6 +6,7 @@ import { SuccessMessageDataSchema, type SuccessMessageData } from "@shared/schem
 import { Button, ButtonVariants, Progress } from "@ui/index";
 import { useEffect, useState, type ReactElement } from "react";
 
+const VERIFICATION_DEDUP_TTL_MS = 5000;
 const verificationRequests = new Map<string, Promise<ApiClientResult<SuccessMessageData>>>();
 
 function verifyEmailOnce(token: string): Promise<ApiClientResult<SuccessMessageData>> {
@@ -17,6 +18,12 @@ function verifyEmailOnce(token: string): Promise<ApiClientResult<SuccessMessageD
   const request = apiPost("/api/auth/verify-email", { token }, SuccessMessageDataSchema).then((res) => {
     if (!res.ok && (res.status === 0 || res.status === 429 || res.status >= 500)) {
       verificationRequests.delete(token);
+    } else {
+      window.setTimeout(() => {
+        if (verificationRequests.get(token) === request) {
+          verificationRequests.delete(token);
+        }
+      }, VERIFICATION_DEDUP_TTL_MS);
     }
     return res;
   });

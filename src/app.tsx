@@ -25,27 +25,27 @@ export function App(): ReactElement {
     case "/":
       return <DashboardPage />;
     case "/login":
-      return <LoginPage />;
+      return <LoginPage key={location.search} />;
     case "/register":
-      return <RegisterPage />;
+      return <RegisterPage key={location.search} />;
     case "/verify-pending":
       return <VerifyPendingPage />;
     case "/verify-email":
       return <VerifyEmailPage />;
     case "/forgot-password":
-      return <ForgotPasswordPage />;
+      return <ForgotPasswordPage key={location.search} />;
     case "/reset-password":
-      return <ResetPasswordPage />;
+      return <ResetPasswordPage key={location.search} />;
     case "/change-password":
-      return <ChangePasswordPage />;
+      return <ChangePasswordPage key={location.search} />;
     case "/magic-link":
-      return <MagicLinkPage />;
+      return <MagicLinkPage key={location.search} />;
     case "/verify-magic-link":
       return <VerifyMagicLinkPage />;
     case "/2fa/verify":
-      return <TwoFactorVerifyPage />;
+      return <TwoFactorVerifyPage key={location.search} />;
     case "/2fa/setup":
-      return <TwoFactorSetupPage />;
+      return <TwoFactorSetupPage key={location.search} />;
     default:
       return (
         <AuthShell title="Page not found" subtitle="The requested page could not be found.">

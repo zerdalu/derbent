@@ -208,6 +208,17 @@ export async function clearConflictingSessions(c: Context<HonoEnv>, newlyLoggedI
   const cookieOpts = buildCookieOptions(c.get("config"));
 
   if (newlyLoggedInApp === "sso") {
+    const existingSsoSessionId = getCookie(c, "session_sso");
+    if (existingSsoSessionId) {
+      try {
+        await authService.logout(existingSsoSessionId);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          logger.warn(`Failed to clean up previous SSO session: ${error.message}`);
+        }
+      }
+    }
+
     const allApps = await appRepo.findAll();
     for (const app of allApps) {
       if (app.id === "sso") {

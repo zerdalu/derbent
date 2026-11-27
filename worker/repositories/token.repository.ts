@@ -1,5 +1,12 @@
 import * as v from "valibot";
 
+const VersionedUserTokenSchema = v.object({
+  userId: v.string(),
+  tokenVersion: v.number(),
+});
+
+export type VersionedUserToken = v.InferOutput<typeof VersionedUserTokenSchema>;
+
 const TwoFactorLoginPayloadSchema = v.object({
   userId: v.string(),
   appId: v.string(),
@@ -11,6 +18,20 @@ const TwoFactorLoginPayloadSchema = v.object({
 export type TwoFactorLoginPayload = v.InferInput<typeof TwoFactorLoginPayloadSchema>;
 export type TwoFactorLoginRecord = v.InferOutput<typeof TwoFactorLoginPayloadSchema>;
 
+function parseVersionedUserToken(raw: string | null): VersionedUserToken | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const result = v.safeParse(VersionedUserTokenSchema, parsed);
+    return result.success ? result.output : null;
+  } catch {
+    return null;
+  }
+}
+
 export class TokenRepository {
   private readonly kv: KVNamespace;
 
@@ -18,12 +39,20 @@ export class TokenRepository {
     this.kv = kv;
   }
 
-  async saveEmailVerificationToken(token: string, userId: string, ttlSeconds = 900): Promise<void> {
-    await this.kv.put(`verify_email:${token}`, userId, { expirationTtl: ttlSeconds });
+  async saveEmailVerificationToken(
+    token: string,
+    userId: string,
+    tokenVersion: number,
+    ttlSeconds = 900,
+  ): Promise<void> {
+    await this.kv.put(`verify_email:${token}`, JSON.stringify({ userId, tokenVersion }), {
+      expirationTtl: ttlSeconds,
+    });
   }
 
-  async getUserIdFromVerifyToken(token: string): Promise<string | null> {
-    return await this.kv.get(`verify_email:${token}`);
+  async getVerifyTokenData(token: string): Promise<VersionedUserToken | null> {
+    const raw = await this.kv.get(`verify_email:${token}`);
+    return parseVersionedUserToken(raw);
   }
 
   async deleteEmailVerificationToken(token: string): Promise<void> {
@@ -39,28 +68,61 @@ export class TokenRepository {
     await this.kv.put(`verify_email_cd:${userId}`, "1", { expirationTtl: ttlSeconds });
   }
 
-  async savePasswordResetToken(token: string, userId: string, ttlSeconds = 900): Promise<void> {
-    await this.kv.put(`reset_pwd:${token}`, userId, { expirationTtl: ttlSeconds });
+  async savePasswordResetToken(token: string, userId: string, tokenVersion: number, ttlSeconds = 900): Promise<void> {
+    await this.kv.put(`reset_pwd:${token}`, JSON.stringify({ userId, tokenVersion }), {
+      expirationTtl: ttlSeconds,
+    });
   }
 
-  async getUserIdFromResetToken(token: string): Promise<string | null> {
-    return await this.kv.get(`reset_pwd:${token}`);
+  async getResetTokenData(token: string): Promise<VersionedUserToken | null> {
+    const raw = await this.kv.get(`reset_pwd:${token}`);
+    return parseVersionedUserToken(raw);
   }
 
   async deletePasswordResetToken(token: string): Promise<void> {
     await this.kv.delete(`reset_pwd:${token}`);
   }
 
-  async saveMagicLinkToken(token: string, userId: string, ttlSeconds = 900): Promise<void> {
-    await this.kv.put(`magic_link:${token}`, userId, { expirationTtl: ttlSeconds });
+  async isPasswordResetOnCooldown(userId: string): Promise<boolean> {
+    const val = await this.kv.get(`reset_pwd_cd:${userId}`);
+    return val !== null;
   }
 
-  async getUserIdFromMagicLinkToken(token: string): Promise<string | null> {
-    return await this.kv.get(`magic_link:${token}`);
+  async setPasswordResetCooldown(userId: string, ttlSeconds = 60): Promise<void> {
+    await this.kv.put(`reset_pwd_cd:${userId}`, "1", { expirationTtl: ttlSeconds });
+  }
+
+  async saveMagicLinkToken(token: string, userId: string, tokenVersion: number, ttlSeconds = 900): Promise<void> {
+    await this.kv.put(`magic_link:${token}`, JSON.stringify({ userId, tokenVersion }), {
+      expirationTtl: ttlSeconds,
+    });
+  }
+
+  async getMagicLinkTokenData(token: string): Promise<VersionedUserToken | null> {
+    const raw = await this.kv.get(`magic_link:${token}`);
+    return parseVersionedUserToken(raw);
   }
 
   async deleteMagicLinkToken(token: string): Promise<void> {
     await this.kv.delete(`magic_link:${token}`);
+  }
+
+  async isMagicLinkOnCooldown(userId: string): Promise<boolean> {
+    const val = await this.kv.get(`magic_link_cd:${userId}`);
+    return val !== null;
+  }
+
+  async setMagicLinkCooldown(userId: string, ttlSeconds = 60): Promise<void> {
+    await this.kv.put(`magic_link_cd:${userId}`, "1", { expirationTtl: ttlSeconds });
+  }
+
+  async hasLoggedIpChangeNotice(sessionId: string, ip: string): Promise<boolean> {
+    const val = await this.kv.get(`ip_notice:${sessionId}:${ip.trim()}`);
+    return val !== null;
+  }
+
+  async markIpChangeNoticeLogged(sessionId: string, ip: string, ttlSeconds = 86400): Promise<void> {
+    await this.kv.put(`ip_notice:${sessionId}:${ip.trim()}`, "1", { expirationTtl: ttlSeconds });
   }
 
   async saveTwoFactorSetupSecret(userId: string, secret: string, ttlSeconds = 900): Promise<void> {

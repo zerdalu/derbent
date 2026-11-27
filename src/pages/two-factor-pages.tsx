@@ -15,6 +15,10 @@ import { Badge, BadgeVariants, Button, ButtonVariants, Field, FieldLabel, Input,
 import { useEffect, useState, type FormEvent, type MouseEvent, type ReactElement } from "react";
 import * as v from "valibot";
 
+type SetupFetchState =
+  | { readonly kind: "loaded"; readonly appId: string; readonly data: TwoFactorSetupStateData }
+  | { readonly kind: "error"; readonly appId: string; readonly message: string };
+
 export function TwoFactorVerifyPage(): ReactElement {
   const location = useRouterLocation();
   const params = new URLSearchParams(location.search);
@@ -129,8 +133,7 @@ export function TwoFactorSetupPage(): ReactElement {
   const params = new URLSearchParams(location.search);
   const appId = params.get("app_id")?.trim() || "sso";
 
-  const [setupState, setSetupState] = useState<TwoFactorSetupStateData | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [fetchState, setFetchState] = useState<SetupFetchState | null>(null);
   const [code, setCode] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,17 +153,21 @@ export function TwoFactorSetupPage(): ReactElement {
           navigate(`/login?${buildAuthQuery(appId, returnUrl)}`, { replace: true });
           return;
         }
-        setLoadError(res.message);
+        setFetchState({ kind: "error", appId, message: res.message });
         return;
       }
 
-      setSetupState(res.data);
+      setFetchState({ kind: "loaded", appId, data: res.data });
     };
     void load();
     return () => {
       cancelled = true;
     };
   }, [appId]);
+
+  const activeFetchState = fetchState?.appId === appId ? fetchState : null;
+  const setupState = activeFetchState?.kind === "loaded" ? activeFetchState.data : null;
+  const loadError = activeFetchState?.kind === "error" ? activeFetchState.message : null;
 
   const handleBackClick = (event: MouseEvent<HTMLAnchorElement>): void => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {

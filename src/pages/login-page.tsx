@@ -273,7 +273,7 @@ export function LoginPage(): ReactElement {
           </a>
         </p>
 
-        {context?.allowSignups !== false ? (
+        {context?.allowSignups === true ? (
           <p>
             Don&apos;t have an account?{" "}
             <a

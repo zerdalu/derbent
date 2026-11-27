@@ -3,9 +3,24 @@ import type { HonoEnv } from "@worker/types/hono-env";
 import type { DerbentConfig } from "@worker/types/models";
 import type { MiddlewareHandler } from "hono";
 
+const ISOLATE_CONFIG_CACHE_TTL_MS = 5000;
+
+interface IsolateDynamicConfigCache {
+  readonly masterKey: string;
+  readonly config: Record<string, string>;
+  readonly expiresAt: number;
+}
+
+let isolateConfigCache: IsolateDynamicConfigCache | null = null;
+
+export function clearDynamicConfigCache(): void {
+  isolateConfigCache = null;
+}
+
 function mergeConfig(base: DerbentConfig, dynamic: Record<string, string>): DerbentConfig {
   return {
-    APP_ENV: dynamic.APP_ENV?.trim() || base.APP_ENV,
+    // APP_ENV is deploy-time only and must never be downgraded via dynamic config
+    APP_ENV: base.APP_ENV,
     LOG_LEVEL: dynamic.LOG_LEVEL?.trim() || base.LOG_LEVEL,
     APP_NAME: dynamic.APP_NAME?.trim() || base.APP_NAME,
     BASE_URL: dynamic.BASE_URL?.trim() || base.BASE_URL,
@@ -48,12 +63,23 @@ export async function resolveEffectiveConfig(env: CloudflareBindings): Promise<D
     return baseConfig;
   }
 
+  const now = Date.now();
+  if (isolateConfigCache && isolateConfigCache.masterKey === masterKey && now < isolateConfigCache.expiresAt) {
+    return mergeConfig(baseConfig, isolateConfigCache.config);
+  }
+
   const settingsRepo = new SettingsRepository(env.DB, env.KV);
   let dynamicConfig = await settingsRepo.getCachedConfig(masterKey);
 
   if (!dynamicConfig) {
     dynamicConfig = await settingsRepo.buildAndCacheConfig(masterKey);
   }
+
+  isolateConfigCache = {
+    masterKey,
+    config: dynamicConfig,
+    expiresAt: now + ISOLATE_CONFIG_CACHE_TTL_MS,
+  };
 
   return mergeConfig(baseConfig, dynamicConfig);
 }

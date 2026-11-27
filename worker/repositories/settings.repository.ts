@@ -1,5 +1,5 @@
 import type { SettingRecord } from "@worker/types/models";
-import { decryptKV, encryptKV } from "@worker/utils/crypto";
+import { decryptKV, decryptSecret, encryptKV, encryptSecret } from "@worker/utils/crypto";
 import * as v from "valibot";
 
 const ConfigMapSchema = v.record(v.string(), v.string());
@@ -19,14 +19,15 @@ export class SettingsRepository {
     return results || [];
   }
 
-  async update(key: string, value: string, isSecret: boolean): Promise<void> {
+  async update(key: string, value: string, isSecret: boolean, masterKey?: string): Promise<void> {
+    const storedValue = isSecret && masterKey ? await encryptSecret(value, masterKey) : value;
     await this.db
       .prepare(
         `INSERT INTO settings (key, value, is_secret)
          VALUES (?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, is_secret = excluded.is_secret`,
       )
-      .bind(key, value, isSecret ? 1 : 0)
+      .bind(key, storedValue, isSecret ? 1 : 0)
       .run();
   }
 
@@ -58,7 +59,19 @@ export class SettingsRepository {
     const configMap: Record<string, string> = {};
 
     for (const record of records) {
-      if (record.value !== null) {
+      if (record.value === null) {
+        continue;
+      }
+
+      if (record.is_secret === 1) {
+        try {
+          configMap[record.key] = await decryptSecret(record.value, masterKey);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            console.error(`[SettingsRepo] Failed to decrypt secret setting '${record.key}':`, error.message);
+          }
+        }
+      } else {
         configMap[record.key] = record.value;
       }
     }

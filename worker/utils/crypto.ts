@@ -7,6 +7,9 @@ const EncryptedPayloadSchema = v.object({
 });
 
 const MAX_WORKERS_PBKDF2_ITERATIONS = 100000;
+const KV_CONFIG_KEY_PURPOSE = "derbent:kv-config:v1";
+const DB_SECRET_KEY_PURPOSE = "derbent:db-secret:v1";
+const ENCRYPTED_SECRET_PREFIX = "enc:v1:";
 
 /**
  * Compares two strings in constant time to prevent timing side-channel attacks.
@@ -142,14 +145,14 @@ export function decodeBase64UrlUtf8(encoded: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-async function getAesKey(secretKey: string): Promise<CryptoKey> {
-  const keyMaterial = new TextEncoder().encode(secretKey);
+async function getAesKey(secretKey: string, purpose: string): Promise<CryptoKey> {
+  const keyMaterial = new TextEncoder().encode(`${purpose}:${secretKey}`);
   const hash = await crypto.subtle.digest("SHA-256", keyMaterial);
   return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-export async function encryptKV(plainText: string, secretKey: string): Promise<string> {
-  const key = await getAesKey(secretKey);
+async function encryptAesGcmJson(plainText: string, secretKey: string, purpose: string): Promise<string> {
+  const key = await getAesKey(secretKey, purpose);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encodedText = new TextEncoder().encode(plainText);
 
@@ -161,7 +164,7 @@ export async function encryptKV(plainText: string, secretKey: string): Promise<s
   });
 }
 
-export async function decryptKV(encryptedJson: string, secretKey: string): Promise<string> {
+async function decryptAesGcmJson(encryptedJson: string, secretKey: string, purpose: string): Promise<string> {
   let rawParsed: unknown;
   try {
     rawParsed = JSON.parse(encryptedJson);
@@ -176,8 +179,29 @@ export async function decryptKV(encryptedJson: string, secretKey: string): Promi
 
   const iv = base64ToBuffer(parsed.output.iv);
   const cipherData = base64ToBuffer(parsed.output.data);
-  const key = await getAesKey(secretKey);
+  const key = await getAesKey(secretKey, purpose);
 
   const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipherData);
   return new TextDecoder().decode(decryptedBuffer);
+}
+
+export async function encryptKV(plainText: string, secretKey: string): Promise<string> {
+  return encryptAesGcmJson(plainText, secretKey, KV_CONFIG_KEY_PURPOSE);
+}
+
+export async function decryptKV(encryptedJson: string, secretKey: string): Promise<string> {
+  return decryptAesGcmJson(encryptedJson, secretKey, KV_CONFIG_KEY_PURPOSE);
+}
+
+export async function encryptSecret(plainText: string, secretKey: string): Promise<string> {
+  const encryptedJson = await encryptAesGcmJson(plainText, secretKey, DB_SECRET_KEY_PURPOSE);
+  return `${ENCRYPTED_SECRET_PREFIX}${encryptedJson}`;
+}
+
+export async function decryptSecret(storedValue: string, secretKey: string): Promise<string> {
+  if (!storedValue.startsWith(ENCRYPTED_SECRET_PREFIX)) {
+    return storedValue;
+  }
+  const payload = storedValue.slice(ENCRYPTED_SECRET_PREFIX.length);
+  return decryptAesGcmJson(payload, secretKey, DB_SECRET_KEY_PURPOSE);
 }

@@ -12,6 +12,7 @@ import { Button, ButtonVariants, Field, FieldLabel, Input, Progress } from "@ui/
 import { useEffect, useState, type FormEvent, type MouseEvent, type ReactElement } from "react";
 import * as v from "valibot";
 
+const MAGIC_LINK_DEDUP_TTL_MS = 5000;
 const magicLinkRequests = new Map<string, Promise<ApiClientResult<LoginResultData>>>();
 
 function verifyMagicLinkOnce(
@@ -29,6 +30,12 @@ function verifyMagicLinkOnce(
     (res) => {
       if (!res.ok && (res.status === 0 || res.status === 429 || res.status >= 500)) {
         magicLinkRequests.delete(cacheKey);
+      } else {
+        window.setTimeout(() => {
+          if (magicLinkRequests.get(cacheKey) === request) {
+            magicLinkRequests.delete(cacheKey);
+          }
+        }, MAGIC_LINK_DEDUP_TTL_MS);
       }
       return res;
     },

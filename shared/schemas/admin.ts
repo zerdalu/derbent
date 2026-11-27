@@ -3,6 +3,9 @@ import { JsonObjectSchema } from "@shared/types/json";
 import { isSafeSvg } from "@shared/utils/svg";
 import * as v from "valibot";
 
+const MAX_SVG_ICON_LENGTH = 16384;
+const MAX_METADATA_BYTES = 8192;
+
 export const SettingKeys = {
   AppEnv: "APP_ENV",
   LogLevel: "LOG_LEVEL",
@@ -61,7 +64,15 @@ const NullableOptionalUrlSchema = v.optional(
 );
 
 export const AdminUpdateUserSchema = v.object({
-  metadata: v.optional(JsonObjectSchema),
+  metadata: v.optional(
+    v.pipe(
+      JsonObjectSchema,
+      v.check(
+        (val) => new TextEncoder().encode(JSON.stringify(val)).byteLength <= MAX_METADATA_BYTES,
+        "Metadata JSON must not exceed 8 KB.",
+      ),
+    ),
+  ),
   email_verified: v.optional(v.union([v.literal(0), v.literal(1)])),
   app: v.optional(v.pipe(v.string(), v.minLength(1))),
 });
@@ -89,6 +100,7 @@ export const AdminCreateAppSchema = v.object({
     v.nullable(
       v.pipe(
         v.string(),
+        v.maxLength(MAX_SVG_ICON_LENGTH, "Icon SVG must not exceed 16 KB."),
         v.check(
           (val) => val.trim() === "" || isSafeSvg(val),
           "Icon must be valid, safe SVG markup without scripts or handlers.",
@@ -115,7 +127,6 @@ export const AdminUpdateAppSchema = v.partial(v.omit(AdminCreateAppSchema, ["id"
 export type AdminUpdateAppInput = v.InferOutput<typeof AdminUpdateAppSchema>;
 
 export const AdminUpdateSettingsSchema = v.strictObject({
-  APP_ENV: v.optional(v.nullable(v.picklist(["", "development", "production"]))),
   LOG_LEVEL: v.optional(v.nullable(v.picklist(["", "debug", "info", "warn", "error", "silent"]))),
   APP_NAME: v.optional(v.nullable(v.string())),
   BASE_URL: NullableOptionalUrlSchema,

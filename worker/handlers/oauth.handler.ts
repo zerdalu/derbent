@@ -1,6 +1,6 @@
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
-import { buildCookieOptions } from "@worker/utils/cookie";
+import { buildCookieOptions, buildHostCookieOptions } from "@worker/utils/cookie";
 import { constantTimeEqual, decodeBase64UrlUtf8, encodeBase64UrlUtf8 } from "@worker/utils/crypto";
 import {
   clearConflictingSessions,
@@ -113,8 +113,7 @@ export class OAuthHandler {
     }
 
     const nonce = crypto.randomUUID();
-    const cookieOpts = buildCookieOptions(config, 600);
-    setCookie(c, "github_oauth_state", nonce, cookieOpts);
+    setCookie(c, "github_oauth_state", nonce, buildHostCookieOptions(config, 600));
 
     const state = encodeBase64UrlUtf8(JSON.stringify({ appId: resolved.appId, redirect: resolved.redirect, nonce }));
     const redirectUri = `${config.BASE_URL.replace(/\/+$/, "")}/auth/github/callback`;
@@ -136,7 +135,7 @@ export class OAuthHandler {
     const { ip, userAgent } = getClientInfo(c);
 
     const storedNonce = getCookie(c, "github_oauth_state");
-    deleteCookie(c, "github_oauth_state", buildCookieOptions(config));
+    deleteCookie(c, "github_oauth_state", buildHostCookieOptions(config));
 
     const parsedState = decodeOAuthState(c, state);
     const appId = parsedState.appId || "sso";
@@ -261,7 +260,7 @@ export class OAuthHandler {
     }
 
     const nonce = crypto.randomUUID();
-    setCookie(c, "google_oauth_state", nonce, buildCookieOptions(config, 600));
+    setCookie(c, "google_oauth_state", nonce, buildHostCookieOptions(config, 600));
 
     const state = encodeBase64UrlUtf8(JSON.stringify({ appId: resolved.appId, redirect: resolved.redirect, nonce }));
     const redirectUri = `${config.BASE_URL.replace(/\/+$/, "")}/auth/google/callback`;
@@ -284,7 +283,7 @@ export class OAuthHandler {
     const { ip, userAgent } = getClientInfo(c);
 
     const storedNonce = getCookie(c, "google_oauth_state");
-    deleteCookie(c, "google_oauth_state", buildCookieOptions(config));
+    deleteCookie(c, "google_oauth_state", buildHostCookieOptions(config));
 
     const parsedState = decodeOAuthState(c, state);
     const appId = parsedState.appId || "sso";

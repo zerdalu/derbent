@@ -47,7 +47,19 @@ async function executeApiRequest<TSchema extends v.BaseSchema<unknown, unknown, 
       credentials: "same-origin",
     });
 
-    const rawBody: unknown = await response.json();
+    let rawBody: unknown;
+    try {
+      rawBody = await response.json();
+    } catch {
+      return {
+        ok: false,
+        code: response.ok ? "INVALID_RESPONSE" : "SERVER_ERROR",
+        message: response.ok
+          ? "Unexpected response format from server."
+          : "The server returned an unexpected error. Please try again.",
+        status: response.status,
+      };
+    }
 
     const parsedEnvelope = v.safeParse(ApiSuccessEnvelopeSchema, rawBody);
     if (parsedEnvelope.success) {

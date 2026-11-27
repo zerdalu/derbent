@@ -75,7 +75,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 DERBENT_API_KEY=your_generated_hex_string_here
 ```
 
-Generate `DERBENT_API_KEY` (used both for `/api/admin/*` Bearer authentication and AES-GCM encryption of cached dynamic settings in KV):
+Generate `DERBENT_API_KEY` (used for `/api/admin/*` Bearer authentication and, via domain-separated key derivation, AES-GCM encryption of secret settings in D1 and cached dynamic settings in KV):
 
 ```bash
 openssl rand -hex 32
@@ -85,7 +85,7 @@ Notes:
 
 - **OAuth Callback URLs:** Configure GitHub and Google OAuth apps with `/auth/github/callback` and `/auth/google/callback` (e.g., `http://localhost:7777/auth/github/callback` locally and `https://derbent.zerdalu.com/auth/github/callback` in production).
 - **PBKDF2 Limit:** `PBKDF2_ITERATIONS` supports `10000` to `100000` (Cloudflare Workers Web Crypto cap).
-- **Dynamic Apps:** Applications are stored in the D1 `apps` table (seeded with `sso` by `migrations/0001_init.sql`) and managed via `/api/admin/apps`.
+- **Dynamic Apps & Settings:** Applications are stored in the D1 `apps` table (seeded with `sso` by `migrations/0001_init.sql`) and managed via `/api/admin/apps`. Dynamic settings updates require `USE_DYNAMIC_CONFIG=true`; `APP_ENV` is deploy-time only and cannot be changed at runtime.
 
 ### 4. Development & Verification
 
@@ -256,38 +256,39 @@ State-changing `/api/auth/*` endpoints enforce `application/json`, `Origin` / `S
 
 ## Admin API Reference
 
-All `/api/admin/*` endpoints require `Authorization: Bearer <DERBENT_API_KEY>` and return `ApiResponse<T>`.
+All `/api/admin/*` endpoints require `Authorization: Bearer <DERBENT_API_KEY>` (with isolated IP rate limiting on failed authentication attempts) and return `ApiResponse<T>`.
 
-| Endpoint                          | Method   | Description                                                                  |
-| :-------------------------------- | :------- | :--------------------------------------------------------------------------- |
-| `/api/admin/stats`                | `GET`    | Dashboard metrics and 30-day signup/login trends                             |
-| `/api/admin/settings`             | `GET`    | Read effective runtime settings with secret masking                          |
-| `/api/admin/settings`             | `PATCH`  | Update or clear dynamic settings in D1 + encrypted KV cache                  |
-| `/api/admin/apps`                 | `GET`    | List registered apps                                                         |
-| `/api/admin/apps/:id`             | `GET`    | Get app configuration                                                        |
-| `/api/admin/apps`                 | `POST`   | Register a new app                                                           |
-| `/api/admin/apps/:id`             | `PATCH`  | Update app configuration                                                     |
-| `/api/admin/apps/:id`             | `DELETE` | Delete an app (excluding `sso` or apps with existing users)                  |
-| `/api/admin/users`                | `GET`    | Paginated user list (`?page=1&limit=20&search=email`)                        |
-| `/api/admin/users/:id`            | `GET`    | Get user profile (`AdminUserView`, omitting password hashes and 2FA secrets) |
-| `/api/admin/users/:id`            | `PATCH`  | Update user metadata, app assignment, or email verification status           |
-| `/api/admin/users/:id/password`   | `POST`   | Force reset a password-based user's password                                 |
-| `/api/admin/users/:id/2fa`        | `DELETE` | Disable 2FA for a user                                                       |
-| `/api/admin/users/:id/sessions`   | `DELETE` | Revoke all active sessions for a user                                        |
-| `/api/admin/users/:id/lock`       | `POST`   | Lock or unlock a user account                                                |
-| `/api/admin/users/:id`            | `DELETE` | Delete user and anonymize historical audit logs                              |
-| `/api/admin/audit-logs`           | `GET`    | Paginated audit logs (`?page=1&limit=50&action=...`)                         |
-| `/api/admin/users/:id/audit-logs` | `GET`    | Paginated audit logs for a specific user                                     |
+| Endpoint                          | Method   | Description                                                                                                              |
+| :-------------------------------- | :------- | :----------------------------------------------------------------------------------------------------------------------- |
+| `/api/admin/stats`                | `GET`    | Dashboard metrics and 30-day signup/login trends                                                                         |
+| `/api/admin/settings`             | `GET`    | Read effective runtime settings with secret masking                                                                      |
+| `/api/admin/settings`             | `PATCH`  | Update or clear dynamic settings in D1 + encrypted KV cache (requires `USE_DYNAMIC_CONFIG=true`; `APP_ENV` is read-only) |
+| `/api/admin/apps`                 | `GET`    | List registered apps                                                                                                     |
+| `/api/admin/apps/:id`             | `GET`    | Get app configuration                                                                                                    |
+| `/api/admin/apps`                 | `POST`   | Register a new app                                                                                                       |
+| `/api/admin/apps/:id`             | `PATCH`  | Update app configuration                                                                                                 |
+| `/api/admin/apps/:id`             | `DELETE` | Delete an app (excluding `sso` or apps with existing users)                                                              |
+| `/api/admin/users`                | `GET`    | Paginated user list (`?page=1&limit=20&search=email`)                                                                    |
+| `/api/admin/users/:id`            | `GET`    | Get user profile (`AdminUserView`, omitting password hashes and 2FA secrets)                                             |
+| `/api/admin/users/:id`            | `PATCH`  | Update user metadata, app assignment, or email verification status                                                       |
+| `/api/admin/users/:id/password`   | `POST`   | Force reset a password-based user's password                                                                             |
+| `/api/admin/users/:id/2fa`        | `DELETE` | Disable 2FA for a user                                                                                                   |
+| `/api/admin/users/:id/sessions`   | `DELETE` | Revoke all active sessions for a user                                                                                    |
+| `/api/admin/users/:id/lock`       | `POST`   | Lock or unlock a user account                                                                                            |
+| `/api/admin/users/:id`            | `DELETE` | Delete user and anonymize historical audit logs                                                                          |
+| `/api/admin/audit-logs`           | `GET`    | Paginated audit logs (`?page=1&limit=50&action=...`)                                                                     |
+| `/api/admin/users/:id/audit-logs` | `GET`    | Paginated audit logs for a specific user                                                                                 |
 
 ---
 
 ## Security & Architecture
 
 - **No JWTs:** Opaque session tokens stored in Cloudflare KV.
-- **Root Domain Cookies:** Scoped via `COOKIE_DOMAIN` for cross-subdomain SSO.
-- **SSO Priority:** Once an `sso` account exists for an email, app-specific accounts for that email cannot be created, and OAuth auto-provisioning will not shadow an existing app-specific account.
-- **Hijack Protection:** Sessions verify `User-Agent` consistency, active application login availability, and `token_version` revocation state.
-- **Abuse Controls:** IP rate limiting (`AUTH_LIMITER`), per-email+IP and global per-email login attempt lockouts, single-use TOTP replay guards with per-user attempt limits, strict redirect sanitization, and allowlist-based SVG XSS validation.
+- **Scoped Cookies:** Session cookies use `COOKIE_DOMAIN` for cross-subdomain SSO, while OAuth state cookies are restricted to the Derbent host only.
+- **SSO Priority:** Once an `sso` account exists for an email, app-specific accounts for that email cannot be created, and OAuth auto-provisioning and password resets will not violate SSO/app account uniqueness.
+- **Version-Bound Tokens:** Email verification, password reset, and magic-link tokens are bound to `token_version` and paired with per-user email cooldowns so password overwrites or session revocations immediately invalidate older links.
+- **Hijack Protection:** Sessions verify `User-Agent` consistency, active application login availability, and `token_version` revocation state, with debounced IP-change audit logging.
+- **Abuse Controls:** Scoped IP rate limiting (`AUTH_LIMITER`), isolated failed-auth rate limiting on `/api/admin/*`, enforced per-email+IP and global per-email login attempt lockouts, single-use TOTP replay guards with per-user attempt limits, strict redirect sanitization, and allowlist-based SVG XSS validation with size caps.
 - **Scheduled Maintenance:** Daily cron (`0 0 * * *`) prunes `audit_logs` older than `AUDIT_LOG_RETENTION_DAYS`.
 
 ---
