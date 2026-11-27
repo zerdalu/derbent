@@ -4,7 +4,7 @@ Self-hosted authentication and SSO engine for Cloudflare Workers, powered by Rea
 
 - Cross-subdomain SSO and app-isolated accounts
 - Email/password, Magic Link, GitHub OAuth, and Google OAuth login
-- TOTP Two-Factor Authentication (2FA) with QR setup and replay protection
+- TOTP Two-Factor Authentication (2FA) with QR setup, at-rest AES-GCM secret encryption, and replay protection
 - Stateful opaque sessions in KV (no JWTs) with User-Agent hijack protection
 - Pure Cloudflare Worker RPC for consuming Workers (`verifySession`, `logoutSession`)
 - Audit logging with scheduled retention pruning and async email queue delivery
@@ -76,7 +76,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 DERBENT_API_KEY=your_generated_hex_string_here
 ```
 
-Generate `DERBENT_API_KEY` (used for `/api/admin/*` Bearer authentication and, via domain-separated key derivation, AES-GCM encryption of secret settings in D1 and cached dynamic settings in KV):
+Generate `DERBENT_API_KEY` (used for `/api/admin/*` Bearer authentication and, via domain-separated key derivation, AES-GCM encryption of secret settings in D1, TOTP 2FA secrets in D1, and cached dynamic settings in KV):
 
 ```bash
 openssl rand -hex 32
@@ -218,7 +218,7 @@ Returns a discriminated union `RpcVerifyResult`:
 
 #### `logoutSession(cookieHeader, appId)`
 
-Destroys the active session in KV (verifying application ownership) and logs the logout event. Returns `{ "ok": true }` or `{ "ok": false, "status": 400 | 401 | 403 | 500, "code": "...", "message": "..." }`.
+Destroys the active session in KV (verifying session existence and application ownership) and logs the logout event. Returns `{ "ok": true }` or `{ "ok": false, "status": 400 | 401 | 403 | 500, "code": "...", "message": "..." }`.
 
 ---
 
@@ -285,12 +285,13 @@ All `/api/admin/*` endpoints require `Authorization: Bearer <DERBENT_API_KEY>` (
 
 ## Security & Architecture
 
-- **No JWTs:** Opaque session tokens stored in Cloudflare KV.
-- **Scoped Cookies:** Session cookies use `COOKIE_DOMAIN` for cross-subdomain SSO, while OAuth state cookies are restricted to the Derbent host only.
-- **SSO Priority:** Once an `sso` account exists for an email, app-specific accounts for that email cannot be created, and OAuth auto-provisioning and password resets will not violate SSO/app account uniqueness.
-- **Version-Bound Tokens:** Email verification, password reset, and magic-link tokens are bound to `token_version` and paired with per-user email cooldowns so password overwrites or session revocations immediately invalidate older links.
-- **Hijack Protection:** Sessions verify `User-Agent` consistency, active application login availability, and `token_version` revocation state, with debounced IP-change audit logging.
-- **Abuse Controls:** IP rate limiting (`AUTH_LIMITER`) on state-changing auth and OAuth endpoints, isolated failed-auth rate limiting on `/api/admin/*`, atomic D1-backed per-email+IP and global per-email login attempt lockouts, single-use TOTP replay guards with per-user attempt limits, strict redirect sanitization, and allowlist-based SVG XSS validation with size caps.
+- **No JWTs:** Opaque session tokens stored in Cloudflare KV under the `session:` namespace with strict session ID format validation.
+- **Scoped Cookies:** Session cookies use `COOKIE_DOMAIN` for cross-subdomain SSO, while OAuth state and OAuth 2FA challenge cookies are restricted to the Derbent host only.
+- **SSO Priority:** Once a verified `sso` account exists for an email, app-specific accounts for that email cannot be created; verified accounts always take precedence over unverified records, and OAuth auto-provisioning and password resets preserve SSO/app account uniqueness.
+- **Hashed & Version-Bound Tokens:** Email verification, password reset, magic-link, and 2FA challenge tokens are stored as SHA-256 digests in D1, bound to `token_version` (with unverified re-registration password hashes bound to the verification token payload until confirmed), and paired with per-user email cooldowns.
+- **At-Rest Secret & TOTP Encryption:** Dynamic secret settings, cached dynamic settings in KV, and user TOTP 2FA secrets in D1 are encrypted at rest using domain-separated AES-GCM keys derived from `DERBENT_API_KEY`.
+- **Hijack & Revocation Protection:** Sessions verify `User-Agent` consistency, active application login availability, and `token_version` revocation state (with direct KV version updates, revoked tombstones for locked/deleted users, and session version rotation on 2FA changes), plus debounced IP-change audit logging.
+- **Abuse Controls:** IP rate limiting (`AUTH_LIMITER`) on state-changing auth and OAuth endpoints, isolated failed-auth rate limiting on `/api/admin/*`, atomic D1-backed login and TOTP attempt reservation prior to verification (with clean-IP protection against global email lockout DoS), single-use TOTP replay guards, strict redirect sanitization, and allowlist-based SVG XSS validation with entity-smuggling blocks and size caps.
 - **Scheduled Maintenance:** Daily cron (`0 0 * * *`) prunes `audit_logs` older than `AUDIT_LOG_RETENTION_DAYS` along with expired rows from `auth_tokens` and `auth_counters`.
 
 ---

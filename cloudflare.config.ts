@@ -47,7 +47,7 @@ export default defineConfig({
       GOOGLE_CLIENT_SECRET: bindings.secret(),
       DB: bindings.d1({
         name: "db-derbent",
-        id: "59207b81-f785-4e47-928a-57aa3b2c91f7",
+        id: "d9333fd0-9027-4adf-9dc3-e63cbf92b8d1",
       }),
       KV: bindings.kv({
         id: "9d246b1506f54a38ad9df1cf165eb18f",
