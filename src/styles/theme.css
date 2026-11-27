@@ -14,54 +14,54 @@
   --font-weight-ui: 500;
   --font-weight-heading: 600;
 
-  /* Surface Hierarchy (Light: Architectural Platinum / Dark: Stepped Matte Obsidian) */
-  --color-surface-canvas: light-dark(oklch(0.955 0.002 265), oklch(0.11 0.003 265));
-  --color-surface-100: light-dark(oklch(0.992 0.002 265 / 0.92), oklch(0.148 0.004 265 / 0.92));
-  --color-surface-200: light-dark(oklch(0.985 0.002 265 / 0.97), oklch(0.178 0.004 265 / 0.96));
-  --color-surface-300: light-dark(oklch(0.925 0.003 265), oklch(0.215 0.005 265));
-  --color-surface-sunken: light-dark(oklch(0.905 0.003 265), oklch(0.085 0.003 265));
-  --color-surface-hover: light-dark(oklch(0.88 0.004 265), oklch(0.255 0.006 265));
-  --color-surface-active: light-dark(oklch(0.845 0.005 265), oklch(0.295 0.006 265));
-  --color-surface-backdrop: light-dark(oklch(0.12 0.004 265 / 0.52), oklch(0.05 0.003 265 / 0.82));
+  /* Surface Hierarchy (Light: Architectural Platinum / Dark: Softer Stepped Graphite) */
+  --color-surface-canvas: light-dark(oklch(0.955 0.002 265), oklch(0.16 0.005 265));
+  --color-surface-100: light-dark(oklch(0.992 0.002 265 / 0.92), oklch(0.198 0.006 265 / 0.94));
+  --color-surface-200: light-dark(oklch(0.985 0.002 265 / 0.97), oklch(0.228 0.006 265 / 0.97));
+  --color-surface-300: light-dark(oklch(0.925 0.003 265), oklch(0.262 0.007 265));
+  --color-surface-sunken: light-dark(oklch(0.905 0.003 265), oklch(0.138 0.005 265));
+  --color-surface-hover: light-dark(oklch(0.88 0.004 265), oklch(0.296 0.007 265));
+  --color-surface-active: light-dark(oklch(0.845 0.005 265), oklch(0.33 0.008 265));
+  --color-surface-backdrop: light-dark(oklch(0.12 0.004 265 / 0.52), oklch(0.08 0.004 265 / 0.76));
 
   /* Text Hierarchy (Strict WCAG AA Compliant) */
-  --color-text-primary: light-dark(oklch(0.14 0.004 265), oklch(0.97 0.002 265));
-  --color-text-secondary: light-dark(oklch(0.33 0.005 265), oklch(0.815 0.004 265));
-  --color-text-muted: light-dark(oklch(0.44 0.005 265), oklch(0.695 0.005 265));
-  --color-text-disabled: light-dark(oklch(0.56 0.004 265), oklch(0.53 0.004 265));
-  --color-text-on-accent: light-dark(oklch(0.985 0.002 265), oklch(0.11 0.003 265));
-  --color-text-inverse: light-dark(oklch(0.965 0.002 265), oklch(0.12 0.003 265));
+  --color-text-primary: light-dark(oklch(0.14 0.004 265), oklch(0.955 0.003 265));
+  --color-text-secondary: light-dark(oklch(0.33 0.005 265), oklch(0.825 0.005 265));
+  --color-text-muted: light-dark(oklch(0.44 0.005 265), oklch(0.72 0.006 265));
+  --color-text-disabled: light-dark(oklch(0.56 0.004 265), oklch(0.56 0.005 265));
+  --color-text-on-accent: light-dark(oklch(0.985 0.002 265), oklch(0.14 0.005 265));
+  --color-text-inverse: light-dark(oklch(0.965 0.002 265), oklch(0.15 0.005 265));
 
   /* Borders & Specular Rim Lines */
-  --color-border-subtle: light-dark(oklch(0.2 0.004 265 / 0.14), oklch(0.98 0 0 / 0.1));
-  --color-border-default: light-dark(oklch(0.2 0.005 265 / 0.28), oklch(0.98 0 0 / 0.2));
-  --color-border-strong: light-dark(oklch(0.16 0.006 265 / 0.5), oklch(0.98 0 0 / 0.44));
-  --color-border-focus: light-dark(oklch(0.18 0.005 265), oklch(0.97 0 0));
+  --color-border-subtle: light-dark(oklch(0.2 0.004 265 / 0.14), oklch(0.96 0.003 265 / 0.11));
+  --color-border-default: light-dark(oklch(0.2 0.005 265 / 0.28), oklch(0.96 0.003 265 / 0.21));
+  --color-border-strong: light-dark(oklch(0.16 0.006 265 / 0.5), oklch(0.96 0.003 265 / 0.42));
+  --color-border-focus: light-dark(oklch(0.18 0.005 265), oklch(0.955 0.003 265));
 
-  /* Brand & Accent (Photonic White in Dark / Carbon Obsidian in Light) */
-  --color-accent-primary: light-dark(oklch(0.17 0.004 265), oklch(0.965 0.002 265));
-  --color-accent-primary-hover: light-dark(oklch(0.25 0.005 265), oklch(1 0 0));
-  --color-accent-primary-active: light-dark(oklch(0.12 0.004 265), oklch(0.9 0.003 265));
-  --color-accent-subtle: light-dark(oklch(0.17 0.004 265 / 0.1), oklch(0.98 0 0 / 0.12));
-  --color-accent-border: light-dark(oklch(0.17 0.004 265 / 0.38), oklch(0.98 0 0 / 0.42));
-  --color-accent-secondary: light-dark(oklch(0.36 0.006 265), oklch(0.82 0.004 265));
+  /* Brand & Accent (Soft Photonic White in Dark / Carbon Obsidian in Light) */
+  --color-accent-primary: light-dark(oklch(0.17 0.004 265), oklch(0.95 0.003 265));
+  --color-accent-primary-hover: light-dark(oklch(0.25 0.005 265), oklch(0.985 0.002 265));
+  --color-accent-primary-active: light-dark(oklch(0.12 0.004 265), oklch(0.895 0.004 265));
+  --color-accent-subtle: light-dark(oklch(0.17 0.004 265 / 0.1), oklch(0.96 0.003 265 / 0.12));
+  --color-accent-border: light-dark(oklch(0.17 0.004 265 / 0.38), oklch(0.96 0.003 265 / 0.4));
+  --color-accent-secondary: light-dark(oklch(0.36 0.006 265), oklch(0.82 0.005 265));
 
-  /* Stepped Obsidian Vault & Photonic Light Bar Tokens */
-  --color-node-frame: light-dark(oklch(0.2 0.005 265 / 0.2), oklch(0.98 0 0 / 0.12));
-  --color-node-frame-active: light-dark(oklch(0.17 0.005 265 / 0.42), oklch(0.98 0 0 / 0.28));
-  --color-node-step-outer: light-dark(oklch(0.935 0.003 265 / 0.72), oklch(0.132 0.003 265 / 0.86));
-  --color-node-step-inner: light-dark(oklch(0.915 0.003 265 / 0.85), oklch(0.105 0.003 265 / 0.94));
-  --color-node-surface: light-dark(oklch(0.992 0.002 265 / 0.9), oklch(0.142 0.004 265 / 0.92));
-  --color-node-border: light-dark(oklch(0.2 0.005 265 / 0.22), oklch(0.98 0 0 / 0.16));
-  --color-node-featured-border: light-dark(oklch(0.17 0.005 265 / 0.48), oklch(0.98 0 0 / 0.46));
-  --color-node-featured-text: light-dark(oklch(0.14 0.004 265), oklch(0.98 0.002 265));
-  --color-node-featured-muted: light-dark(oklch(0.34 0.005 265), oklch(0.84 0.004 265));
+  /* Stepped Graphite Vault & Photonic Light Bar Tokens */
+  --color-node-frame: light-dark(oklch(0.2 0.005 265 / 0.2), oklch(0.96 0.003 265 / 0.13));
+  --color-node-frame-active: light-dark(oklch(0.17 0.005 265 / 0.42), oklch(0.96 0.003 265 / 0.28));
+  --color-node-step-outer: light-dark(oklch(0.935 0.003 265 / 0.72), oklch(0.18 0.005 265 / 0.88));
+  --color-node-step-inner: light-dark(oklch(0.915 0.003 265 / 0.85), oklch(0.152 0.005 265 / 0.94));
+  --color-node-surface: light-dark(oklch(0.992 0.002 265 / 0.9), oklch(0.198 0.006 265 / 0.94));
+  --color-node-border: light-dark(oklch(0.2 0.005 265 / 0.22), oklch(0.96 0.003 265 / 0.17));
+  --color-node-featured-border: light-dark(oklch(0.17 0.005 265 / 0.48), oklch(0.96 0.003 265 / 0.44));
+  --color-node-featured-text: light-dark(oklch(0.14 0.004 265), oklch(0.965 0.003 265));
+  --color-node-featured-muted: light-dark(oklch(0.34 0.005 265), oklch(0.84 0.005 265));
   --color-node-featured-danger: light-dark(oklch(0.42 0.18 26), oklch(0.84 0.14 26));
-  --color-node-featured-well: light-dark(oklch(0.975 0.003 265 / 0.88), oklch(0.1 0.003 265 / 0.78));
-  --color-node-featured-well-border: light-dark(oklch(0.2 0.005 265 / 0.3), oklch(0.98 0 0 / 0.26));
-  --color-node-glow: light-dark(oklch(0.2 0.005 265 / 0.12), oklch(1 0 0 / 0.24));
-  --color-connector-active: light-dark(oklch(0.16 0.004 265), oklch(0.99 0 0));
-  --color-connector-muted: light-dark(oklch(0.38 0.005 265 / 0.45), oklch(0.85 0.004 265 / 0.38));
+  --color-node-featured-well: light-dark(oklch(0.975 0.003 265 / 0.88), oklch(0.145 0.005 265 / 0.82));
+  --color-node-featured-well-border: light-dark(oklch(0.2 0.005 265 / 0.3), oklch(0.96 0.003 265 / 0.26));
+  --color-node-glow: light-dark(oklch(0.2 0.005 265 / 0.12), oklch(0.98 0.002 265 / 0.2));
+  --color-connector-active: light-dark(oklch(0.16 0.004 265), oklch(0.97 0.002 265));
+  --color-connector-muted: light-dark(oklch(0.38 0.005 265 / 0.45), oklch(0.85 0.005 265 / 0.38));
 
   /* Semantic Status: Success */
   --color-status-success: light-dark(oklch(0.46 0.14 152), oklch(0.82 0.13 152));
@@ -80,7 +80,7 @@
   --color-status-danger-active: light-dark(oklch(0.44 0.19 26), oklch(0.64 0.19 26));
   --color-status-danger-bg: light-dark(oklch(0.55 0.19 26 / 0.11), oklch(0.68 0.19 26 / 0.16));
   --color-status-danger-border: light-dark(oklch(0.5 0.19 26 / 0.44), oklch(0.68 0.19 26 / 0.46));
-  --color-status-danger-text: light-dark(oklch(0.39 0.17 26), oklch(0.85 0.13 26));
+  --color-status-danger-text: light-dark(oklch(0.39 0.17 26), oklch(0.86 0.13 26));
 
   /* Semantic Status: Info */
   --color-status-info: light-dark(oklch(0.46 0.11 235), oklch(0.78 0.1 230));
@@ -101,35 +101,35 @@
 
   /* Elevation, Bevel Rim & Photonic Glow (Shadows) */
   --shadow-control:
-    0 1px 2px 0 light-dark(oklch(0.12 0.004 265 / 0.08), oklch(0 0 0 / 0.55)),
-    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.09));
+    0 1px 2px 0 light-dark(oklch(0.12 0.004 265 / 0.08), oklch(0.05 0.003 265 / 0.42)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.08));
   --shadow-panel:
-    0 24px 48px -12px light-dark(oklch(0.14 0.005 265 / 0.14), oklch(0 0 0 / 0.78)),
-    0 4px 12px -2px light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0 0 0 / 0.5)),
-    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.85), oklch(1 0 0 / 0.12));
+    0 24px 48px -12px light-dark(oklch(0.14 0.005 265 / 0.14), oklch(0.05 0.003 265 / 0.58)),
+    0 4px 12px -2px light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0.05 0.003 265 / 0.38)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.85), oklch(1 0 0 / 0.11));
   --shadow-bezel-step:
-    0 18px 40px -14px light-dark(oklch(0.14 0.005 265 / 0.12), oklch(0 0 0 / 0.72)),
+    0 18px 40px -14px light-dark(oklch(0.14 0.005 265 / 0.12), oklch(0.05 0.003 265 / 0.54)),
     inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.7), oklch(1 0 0 / 0.08)),
-    inset 0 -1px 0 0 light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0 0 0 / 0.6));
+    inset 0 -1px 0 0 light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0.05 0.003 265 / 0.45));
   --shadow-recessed-capsule:
-    inset 0 1px 2px 0 light-dark(oklch(0.14 0.005 265 / 0.1), oklch(0 0 0 / 0.65)),
-    0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.1));
+    inset 0 1px 2px 0 light-dark(oklch(0.14 0.005 265 / 0.1), oklch(0.05 0.003 265 / 0.48)),
+    0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.09));
   --shadow-photonic-bar:
-    0 0 10px 1px light-dark(oklch(0.16 0.004 265 / 0.28), oklch(1 0 0 / 0.85)),
-    0 0 22px 4px light-dark(oklch(0.16 0.004 265 / 0.12), oklch(1 0 0 / 0.42));
+    0 0 10px 1px light-dark(oklch(0.16 0.004 265 / 0.28), oklch(0.98 0.002 265 / 0.72)),
+    0 0 22px 4px light-dark(oklch(0.16 0.004 265 / 0.12), oklch(0.98 0.002 265 / 0.34));
   --shadow-dot-glow:
-    0 0 6px 0 light-dark(oklch(0.16 0.004 265 / 0.22), oklch(1 0 0 / 0.72)),
-    0 0 12px 1px light-dark(oklch(0.16 0.004 265 / 0.1), oklch(1 0 0 / 0.3));
+    0 0 6px 0 light-dark(oklch(0.16 0.004 265 / 0.22), oklch(0.98 0.002 265 / 0.64)),
+    0 0 12px 1px light-dark(oklch(0.16 0.004 265 / 0.1), oklch(0.98 0.002 265 / 0.26));
   --shadow-floating:
-    0 20px 44px -8px light-dark(oklch(0.14 0.005 265 / 0.18), oklch(0 0 0 / 0.78)),
-    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.12));
+    0 20px 44px -8px light-dark(oklch(0.14 0.005 265 / 0.18), oklch(0.05 0.003 265 / 0.62)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.11));
   --shadow-modal:
-    0 32px 64px -12px light-dark(oklch(0.12 0.005 265 / 0.28), oklch(0 0 0 / 0.88)),
-    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.14));
+    0 32px 64px -12px light-dark(oklch(0.12 0.005 265 / 0.28), oklch(0.05 0.003 265 / 0.72)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.12));
   --shadow-node-featured:
-    0 28px 60px -14px light-dark(oklch(0.16 0.005 265 / 0.2), oklch(0 0 0 / 0.85)),
-    0 0 36px -8px light-dark(oklch(0.16 0.005 265 / 0.12), oklch(1 0 0 / 0.22)),
-    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.9), oklch(1 0 0 / 0.28));
+    0 28px 60px -14px light-dark(oklch(0.16 0.005 265 / 0.2), oklch(0.05 0.003 265 / 0.68)),
+    0 0 36px -8px light-dark(oklch(0.16 0.005 265 / 0.12), oklch(0.98 0.002 265 / 0.18)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.9), oklch(1 0 0 / 0.24));
 
   /* Backdrop & Transition Blur */
   --blur-overlay: 8px;
