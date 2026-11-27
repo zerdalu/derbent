@@ -69,7 +69,7 @@ export function createRuntimeServices(
   const logger = new Logger(config.LOG_LEVEL || "info");
   const userRepo = new UserRepository(env.DB);
   const sessionRepo = new SessionRepository(env.KV);
-  const tokenRepo = new TokenRepository(env.DB);
+  const tokenRepo = new TokenRepository(env.DB, env.DERBENT_API_KEY);
   const userTokenVersionRepo = new UserTokenVersionRepository(env.KV);
   const auditLogRepo = new AuditLogRepository(env.DB);
   const loginAttemptRepo = new LoginAttemptRepository(env.DB);
@@ -101,6 +101,7 @@ export function createRuntimeServices(
     auditLogRepo,
     loginAttemptRepo,
     hashIterations,
+    env.DERBENT_API_KEY,
   );
 
   const adminService = new AdminService(

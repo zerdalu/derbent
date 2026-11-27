@@ -1,6 +1,7 @@
 import { AppActionInputSchema, type RedirectResultData } from "@shared/schemas/auth";
 import type { ApiResponse } from "@shared/types/api-response";
 import { getActiveSession, validationError } from "@worker/handlers/http.utils";
+import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import { buildCookieOptions, parseCookieHeaderAll } from "@worker/utils/cookie";
 import { getClientInfo, handleApiError, readJsonBody, resolveTargetApp } from "@worker/utils/runtime";
@@ -80,15 +81,11 @@ export class AuthSessionHandler {
       const cookieHeader = c.req.header("Cookie") ?? "";
 
       const active = await getActiveSession(c, resolved.appId, true);
-      if (active) {
-        try {
-          await authService.logoutAll(active.session.userId, ip, userAgent);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            c.get("logger").warn(`Logout all sessions failed: ${error.message}`);
-          }
-        }
+      if (!active) {
+        throw new AppError("Authentication required.", 401);
       }
+
+      await authService.logoutAll(active.session.userId, ip, userAgent);
 
       const candidateSessionIds = new Set<string>(parseCookieHeaderAll(cookieHeader, `session_${resolved.appId}`));
       if (resolved.appId !== "sso") {
@@ -151,13 +148,12 @@ export class AuthSessionHandler {
       for (const app of allApps) {
         const cookieValues = parseCookieHeaderAll(cookieHeader, `session_${app.id}`);
         for (const cookieVal of cookieValues) {
-          sessionIdsToPurge.add(cookieVal);
-
           try {
             const session = await authService.verifySession(cookieVal, app.id, ip, userAgent, {
               allowDisabledApp: true,
             });
             targetEmails.add(session.email);
+            sessionIdsToPurge.add(cookieVal);
           } catch (error: unknown) {
             if (error instanceof Error) {
               logger.debug(`Session verification failed for app ${app.id}: ${error.message}`);
@@ -166,14 +162,12 @@ export class AuthSessionHandler {
         }
       }
 
+      if (targetEmails.size === 0) {
+        throw new AppError("Authentication required.", 401);
+      }
+
       for (const targetEmail of targetEmails) {
-        try {
-          await authService.logoutAllByEmail(targetEmail, ip, userAgent);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            logger.warn(`Logout all by email failed for ${targetEmail}: ${error.message}`);
-          }
-        }
+        await authService.logoutAllByEmail(targetEmail, ip, userAgent);
       }
 
       for (const sessionId of sessionIdsToPurge) {

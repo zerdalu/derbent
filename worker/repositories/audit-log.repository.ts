@@ -47,8 +47,19 @@ export class AuditLogRepository {
   /**
    * Anonymizes audit records when a user is deleted to preserve an immutable compliance trail without retaining PII.
    */
-  async anonymizeByUserId(userId: string): Promise<void> {
+  async anonymizeByUserId(userId: string, email?: string): Promise<void> {
     try {
+      if (email) {
+        const normalizedEmail = email.trim().toLowerCase();
+        await this.db
+          .prepare(
+            "UPDATE audit_logs SET user_id = '[DELETED_USER]', email = NULL, ip = NULL, user_agent = NULL, details = NULL WHERE user_id = ? OR (user_id IS NULL AND email = ?)",
+          )
+          .bind(userId, normalizedEmail)
+          .run();
+        return;
+      }
+
       await this.db
         .prepare(
           "UPDATE audit_logs SET user_id = '[DELETED_USER]', email = NULL, ip = NULL, user_agent = NULL, details = NULL WHERE user_id = ?",

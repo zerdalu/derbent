@@ -121,8 +121,8 @@ export class AdminUserService {
     }
 
     if (isAppChanged || isEmailUnverified || isMetadataChanged) {
-      await this.userRepo.incrementTokenVersion(userId);
-      await this.userTokenVersionRepo.clearUserVersion(userId);
+      const newVersion = await this.userRepo.incrementTokenVersion(userId);
+      await this.userTokenVersionRepo.setUserVersion(userId, newVersion);
       const refreshed = await this.userRepo.findById(userId);
       if (refreshed) {
         updatedUser = refreshed;
@@ -151,7 +151,7 @@ export class AdminUserService {
 
     const phash = await hashPassword(newPassword, this.hashIterations);
     await this.userRepo.updatePassword(userId, phash);
-    await this.userTokenVersionRepo.clearUserVersion(userId);
+    await this.userTokenVersionRepo.setUserVersion(userId, user.token_version + 1);
 
     await this.auditLogRepo.log({
       action: "admin_force_password_reset",
@@ -185,9 +185,12 @@ export class AdminUserService {
       throw new AppError("User not found", 404);
     }
 
-    await this.auditLogRepo.anonymizeByUserId(userId);
+    const accountsForEmail = await this.userRepo.findAllByEmail(user.email);
+    const hasOtherAccounts = accountsForEmail.some((entry) => entry.id !== userId);
+
+    await this.auditLogRepo.anonymizeByUserId(userId, hasOtherAccounts ? undefined : user.email);
     await this.userRepo.delete(userId);
-    await this.userTokenVersionRepo.clearUserVersion(userId);
+    await this.userTokenVersionRepo.markUserRevoked(userId);
 
     await this.auditLogRepo.log({
       action: "admin_delete_user",
@@ -201,8 +204,8 @@ export class AdminUserService {
       throw new AppError("User not found", 404);
     }
 
-    await this.userRepo.incrementTokenVersion(userId);
-    await this.userTokenVersionRepo.clearUserVersion(userId);
+    const newVersion = await this.userRepo.incrementTokenVersion(userId);
+    await this.userTokenVersionRepo.setUserVersion(userId, newVersion);
 
     await this.auditLogRepo.log({
       action: "admin_revoke_sessions",
@@ -225,7 +228,9 @@ export class AdminUserService {
 
     if (locked) {
       await this.userRepo.incrementTokenVersion(userId);
-      await this.userTokenVersionRepo.clearUserVersion(userId);
+      await this.userTokenVersionRepo.markUserRevoked(userId);
+    } else {
+      await this.userTokenVersionRepo.setUserVersion(userId, user.token_version);
     }
 
     await this.auditLogRepo.log({

@@ -39,7 +39,7 @@ export class UserRepository {
       .prepare(
         `SELECT * FROM users
          WHERE email = ? AND (app = ? OR app = 'sso')
-         ORDER BY app = 'sso' DESC
+         ORDER BY email_verified DESC, app = 'sso' DESC
          LIMIT 1`,
       )
       .bind(this.normalizeEmail(email), app)
@@ -73,6 +73,13 @@ export class UserRepository {
     }
 
     await this.db.prepare("DELETE FROM users WHERE email = ? AND email_verified = 0").bind(normalized).run();
+  }
+
+  async deleteUnverifiedSsoByEmail(email: string): Promise<void> {
+    await this.db
+      .prepare("DELETE FROM users WHERE email = ? AND app = 'sso' AND email_verified = 0")
+      .bind(this.normalizeEmail(email))
+      .run();
   }
 
   async create(user: Omit<UserRecord, "created_at" | "updated_at">): Promise<void> {

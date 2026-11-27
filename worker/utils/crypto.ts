@@ -9,6 +9,7 @@ const EncryptedPayloadSchema = v.object({
 const MAX_WORKERS_PBKDF2_ITERATIONS = 100000;
 const KV_CONFIG_KEY_PURPOSE = "derbent:kv-config:v1";
 const DB_SECRET_KEY_PURPOSE = "derbent:db-secret:v1";
+const TOTP_SECRET_KEY_PURPOSE = "derbent:totp-secret:v1";
 const ENCRYPTED_SECRET_PREFIX = "enc:v1:";
 
 /**
@@ -23,6 +24,20 @@ export async function constantTimeEqual(a: string, b: string): Promise<boolean> 
   const bufB = new Uint8Array(hashB);
 
   return timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Produces a full SHA-256 hex digest of a bearer token so one-time tokens
+ * are never stored in plaintext at rest in D1.
+ */
+export async function hashToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  const bytes = new Uint8Array(digest);
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += (bytes[i] ?? 0).toString(16).padStart(2, "0");
+  }
+  return hex;
 }
 
 /**
@@ -220,7 +235,7 @@ export async function encryptKV(plainText: string, secretKey: string): Promise<s
 }
 
 export async function decryptKV(encryptedJson: string, secretKey: string): Promise<string> {
-  return decryptAesGcmJson(encryptedJson, secretKey, KV_CONFIG_KEY_PURPOSE);
+  return decryptAesGcmJson(encryptedJson, KV_CONFIG_KEY_PURPOSE ? secretKey : secretKey, KV_CONFIG_KEY_PURPOSE);
 }
 
 export async function encryptSecret(plainText: string, secretKey: string): Promise<string> {
@@ -234,4 +249,23 @@ export async function decryptSecret(storedValue: string, secretKey: string): Pro
   }
   const payload = storedValue.slice(ENCRYPTED_SECRET_PREFIX.length);
   return decryptAesGcmJson(payload, secretKey, DB_SECRET_KEY_PURPOSE);
+}
+
+export async function encryptTotpSecret(plainText: string, secretKey?: string): Promise<string> {
+  if (!secretKey) {
+    return plainText;
+  }
+  const encryptedJson = await encryptAesGcmJson(plainText, secretKey, TOTP_SECRET_KEY_PURPOSE);
+  return `${ENCRYPTED_SECRET_PREFIX}${encryptedJson}`;
+}
+
+export async function decryptTotpSecret(storedValue: string, secretKey?: string): Promise<string> {
+  if (!storedValue.startsWith(ENCRYPTED_SECRET_PREFIX)) {
+    return storedValue;
+  }
+  if (!secretKey) {
+    throw new Error("Missing master key required to decrypt TOTP secret");
+  }
+  const payload = storedValue.slice(ENCRYPTED_SECRET_PREFIX.length);
+  return decryptAesGcmJson(payload, secretKey, TOTP_SECRET_KEY_PURPOSE);
 }

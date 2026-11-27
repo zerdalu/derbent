@@ -1,8 +1,10 @@
+import { decryptTotpSecret, encryptTotpSecret, hashToken } from "@worker/utils/crypto";
 import * as v from "valibot";
 
 const VersionedUserTokenSchema = v.object({
   userId: v.string(),
   tokenVersion: v.number(),
+  pendingPhash: v.optional(v.string()),
 });
 
 export type VersionedUserToken = v.InferOutput<typeof VersionedUserTokenSchema>;
@@ -55,9 +57,16 @@ function parseTwoFactorLoginRecord(raw: string | null, attempts: number): TwoFac
 
 export class TokenRepository {
   private readonly db: D1Database;
+  private readonly masterKey: string | undefined;
 
-  constructor(db: D1Database) {
+  constructor(db: D1Database, masterKey?: string) {
     this.db = db;
+    this.masterKey = masterKey;
+  }
+
+  private async getHashedTokenKey(prefix: string, token: string): Promise<string> {
+    const digest = await hashToken(token);
+    return `${prefix}:${digest}`;
   }
 
   private async putToken(key: string, payload: string, ttlSeconds: number, attempts = 0): Promise<void> {
@@ -106,22 +115,30 @@ export class TokenRepository {
     userId: string,
     tokenVersion: number,
     ttlSeconds = 900,
+    pendingPhash?: string,
   ): Promise<void> {
-    await this.putToken(`verify_email:${token}`, JSON.stringify({ userId, tokenVersion }), ttlSeconds);
+    const key = await this.getHashedTokenKey("verify_email", token);
+    const payload = pendingPhash
+      ? JSON.stringify({ userId, tokenVersion, pendingPhash })
+      : JSON.stringify({ userId, tokenVersion });
+    await this.putToken(key, payload, ttlSeconds);
   }
 
   async getVerifyTokenData(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.getTokenRow(`verify_email:${token}`);
+    const key = await this.getHashedTokenKey("verify_email", token);
+    const row = await this.getTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async consumeVerifyToken(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.consumeTokenRow(`verify_email:${token}`);
+    const key = await this.getHashedTokenKey("verify_email", token);
+    const row = await this.consumeTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async deleteEmailVerificationToken(token: string): Promise<void> {
-    await this.deleteToken(`verify_email:${token}`);
+    const key = await this.getHashedTokenKey("verify_email", token);
+    await this.deleteToken(key);
   }
 
   async isVerificationEmailOnCooldown(userId: string): Promise<boolean> {
@@ -133,21 +150,25 @@ export class TokenRepository {
   }
 
   async savePasswordResetToken(token: string, userId: string, tokenVersion: number, ttlSeconds = 900): Promise<void> {
-    await this.putToken(`reset_pwd:${token}`, JSON.stringify({ userId, tokenVersion }), ttlSeconds);
+    const key = await this.getHashedTokenKey("reset_pwd", token);
+    await this.putToken(key, JSON.stringify({ userId, tokenVersion }), ttlSeconds);
   }
 
   async getResetTokenData(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.getTokenRow(`reset_pwd:${token}`);
+    const key = await this.getHashedTokenKey("reset_pwd", token);
+    const row = await this.getTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async consumeResetToken(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.consumeTokenRow(`reset_pwd:${token}`);
+    const key = await this.getHashedTokenKey("reset_pwd", token);
+    const row = await this.consumeTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async deletePasswordResetToken(token: string): Promise<void> {
-    await this.deleteToken(`reset_pwd:${token}`);
+    const key = await this.getHashedTokenKey("reset_pwd", token);
+    await this.deleteToken(key);
   }
 
   async isPasswordResetOnCooldown(userId: string): Promise<boolean> {
@@ -159,21 +180,25 @@ export class TokenRepository {
   }
 
   async saveMagicLinkToken(token: string, userId: string, tokenVersion: number, ttlSeconds = 900): Promise<void> {
-    await this.putToken(`magic_link:${token}`, JSON.stringify({ userId, tokenVersion }), ttlSeconds);
+    const key = await this.getHashedTokenKey("magic_link", token);
+    await this.putToken(key, JSON.stringify({ userId, tokenVersion }), ttlSeconds);
   }
 
   async getMagicLinkTokenData(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.getTokenRow(`magic_link:${token}`);
+    const key = await this.getHashedTokenKey("magic_link", token);
+    const row = await this.getTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async consumeMagicLinkToken(token: string): Promise<VersionedUserToken | null> {
-    const row = await this.consumeTokenRow(`magic_link:${token}`);
+    const key = await this.getHashedTokenKey("magic_link", token);
+    const row = await this.consumeTokenRow(key);
     return parseVersionedUserToken(row?.payload ?? null);
   }
 
   async deleteMagicLinkToken(token: string): Promise<void> {
-    await this.deleteToken(`magic_link:${token}`);
+    const key = await this.getHashedTokenKey("magic_link", token);
+    await this.deleteToken(key);
   }
 
   async isMagicLinkOnCooldown(userId: string): Promise<boolean> {
@@ -193,12 +218,20 @@ export class TokenRepository {
   }
 
   async saveTwoFactorSetupSecret(userId: string, secret: string, ttlSeconds = 900): Promise<void> {
-    await this.putToken(`2fa_setup:${userId}`, secret, ttlSeconds);
+    const storedSecret = await encryptTotpSecret(secret, this.masterKey);
+    await this.putToken(`2fa_setup:${userId}`, storedSecret, ttlSeconds);
   }
 
   async getTwoFactorSetupSecret(userId: string): Promise<string | null> {
     const row = await this.getTokenRow(`2fa_setup:${userId}`);
-    return row?.payload ?? null;
+    if (!row) {
+      return null;
+    }
+    try {
+      return await decryptTotpSecret(row.payload, this.masterKey);
+    } catch {
+      return null;
+    }
   }
 
   async deleteTwoFactorSetupSecret(userId: string): Promise<void> {
@@ -206,12 +239,14 @@ export class TokenRepository {
   }
 
   async saveTwoFactorLoginToken(token: string, data: TwoFactorLoginPayload, ttlSeconds = 300): Promise<void> {
+    const key = await this.getHashedTokenKey("2fa_login", token);
     const attempts = data.attempts ?? 0;
-    await this.putToken(`2fa_login:${token}`, JSON.stringify({ ...data, attempts }), ttlSeconds, attempts);
+    await this.putToken(key, JSON.stringify({ ...data, attempts }), ttlSeconds, attempts);
   }
 
   async getTwoFactorLoginData(token: string): Promise<TwoFactorLoginRecord | null> {
-    const row = await this.getTokenRow(`2fa_login:${token}`);
+    const key = await this.getHashedTokenKey("2fa_login", token);
+    const row = await this.getTokenRow(key);
     if (!row) {
       return null;
     }
@@ -219,7 +254,8 @@ export class TokenRepository {
   }
 
   async consumeTwoFactorLoginToken(token: string): Promise<TwoFactorLoginRecord | null> {
-    const row = await this.consumeTokenRow(`2fa_login:${token}`);
+    const key = await this.getHashedTokenKey("2fa_login", token);
+    const row = await this.consumeTokenRow(key);
     if (!row) {
       return null;
     }
@@ -227,6 +263,7 @@ export class TokenRepository {
   }
 
   async incrementTwoFactorLoginAttempts(token: string, ttlSeconds = 300): Promise<number> {
+    const key = await this.getHashedTokenKey("2fa_login", token);
     const now = Date.now();
     const expiresAt = now + ttlSeconds * 1000;
     const row = await this.db
@@ -236,14 +273,15 @@ export class TokenRepository {
          WHERE key = ? AND expires_at > ?
          RETURNING attempts`,
       )
-      .bind(expiresAt, `2fa_login:${token}`, now)
+      .bind(expiresAt, key, now)
       .first<{ attempts: number }>();
 
     return row?.attempts ?? 1;
   }
 
   async deleteTwoFactorLoginToken(token: string): Promise<void> {
-    await this.deleteToken(`2fa_login:${token}`);
+    const key = await this.getHashedTokenKey("2fa_login", token);
+    await this.deleteToken(key);
   }
 
   async getTotpActionAttempts(userId: string): Promise<number> {
@@ -264,10 +302,10 @@ export class TokenRepository {
          VALUES (?, 1, ?)
          ON CONFLICT(key) DO UPDATE SET
            count = CASE WHEN auth_counters.expires_at <= ? THEN 1 ELSE auth_counters.count + 1 END,
-           expires_at = excluded.expires_at
+           expires_at = CASE WHEN auth_counters.expires_at <= ? THEN excluded.expires_at ELSE auth_counters.expires_at END
          RETURNING count`,
       )
-      .bind(`totp_attempts:${userId}`, expiresAt, now)
+      .bind(`totp_attempts:${userId}`, expiresAt, now, now)
       .first<{ count: number }>();
 
     return row?.count ?? 1;

@@ -170,9 +170,14 @@ export class AuthSessionService {
     }
 
     let currentVersion = await this.userTokenVersionRepo.getUserVersion(session.userId);
+    if (currentVersion !== null && currentVersion < 0) {
+      throw new AppError("User not found or locked", 401);
+    }
+
     if (currentVersion === null) {
       const user = await this.userRepo.findById(session.userId);
       if (!user || user.is_locked === 1) {
+        await this.userTokenVersionRepo.markUserRevoked(session.userId);
         throw new AppError("User not found or locked", 401);
       }
       currentVersion = user.token_version;
@@ -188,21 +193,23 @@ export class AuthSessionService {
 
   async logout(sessionId: string, expectedAppId?: string): Promise<void> {
     const session = await this.sessionRepo.get(sessionId);
-    if (session && expectedAppId && session.appId !== expectedAppId && session.appId !== "sso") {
+    if (!session) {
+      return;
+    }
+
+    if (expectedAppId && session.appId !== expectedAppId && session.appId !== "sso") {
       throw new AppError("Forbidden", 403);
     }
 
     await this.sessionRepo.delete(sessionId);
 
-    if (session) {
-      await this.auditLogRepo.log({
-        action: "logout",
-        userId: session.userId,
-        email: session.email,
-        ip: session.ip,
-        details: { appId: session.appId },
-      });
-    }
+    await this.auditLogRepo.log({
+      action: "logout",
+      userId: session.userId,
+      email: session.email,
+      ip: session.ip,
+      details: { appId: session.appId },
+    });
   }
 
   async logoutAll(userId: string, ip: string, userAgent: string): Promise<void> {

@@ -9,7 +9,7 @@ import type { ApiResponse } from "@shared/types/api-response";
 import { getActiveSession, validationError } from "@worker/handlers/http.utils";
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
-import { buildCookieOptions } from "@worker/utils/cookie";
+import { buildCookieOptions, buildHostCookieOptions } from "@worker/utils/cookie";
 import {
   clearConflictingSessions,
   getClientInfo,
@@ -19,8 +19,10 @@ import {
 } from "@worker/utils/runtime";
 import { generateSecret } from "@worker/utils/totp";
 import type { Context } from "hono";
-import { setCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import * as v from "valibot";
+
+export const TWO_FACTOR_CHALLENGE_COOKIE = "two_factor_challenge";
 
 export class AuthTwoFactorHandler {
   static async getTwoFactorSetup(c: Context<HonoEnv>): Promise<Response> {
@@ -82,7 +84,9 @@ export class AuthTwoFactorHandler {
       }
 
       const { ip, userAgent } = getClientInfo(c);
-      await c.get("authService").enableTwoFactor(active.session.userId, result.output.code, ip, userAgent);
+      await c
+        .get("authService")
+        .enableTwoFactor(active.session.userId, result.output.code, ip, userAgent, active.sessionId);
 
       const response: ApiResponse<SuccessMessageData> = {
         success: true,
@@ -108,7 +112,9 @@ export class AuthTwoFactorHandler {
       }
 
       const { ip, userAgent } = getClientInfo(c);
-      await c.get("authService").disableTwoFactor(active.session.userId, result.output.code, ip, userAgent);
+      await c
+        .get("authService")
+        .disableTwoFactor(active.session.userId, result.output.code, ip, userAgent, active.sessionId);
 
       const response: ApiResponse<SuccessMessageData> = {
         success: true,
@@ -129,6 +135,12 @@ export class AuthTwoFactorHandler {
       }
 
       const config = c.get("config");
+      const cookieToken = getCookie(c, TWO_FACTOR_CHALLENGE_COOKIE)?.trim();
+      const effectiveToken = result.output.token === "cookie" ? (cookieToken ?? "") : result.output.token;
+      if (!effectiveToken) {
+        throw new AppError("Session expired. Please log in again.", 401);
+      }
+
       const resolved = await resolveTargetApp(
         c.get("appRepo"),
         result.output.appId,
@@ -140,7 +152,11 @@ export class AuthTwoFactorHandler {
 
       const loginResult = await c
         .get("authService")
-        .verifyTwoFactorLogin(result.output.token, result.output.code, ip, userAgent, resolved.appId);
+        .verifyTwoFactorLogin(effectiveToken, result.output.code, ip, userAgent, resolved.appId);
+
+      if (cookieToken) {
+        deleteCookie(c, TWO_FACTOR_CHALLENGE_COOKIE, buildHostCookieOptions(config));
+      }
 
       await clearConflictingSessions(c, loginResult.app);
       const cookieOpts = buildCookieOptions(config, 86400);

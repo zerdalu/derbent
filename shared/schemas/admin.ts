@@ -5,6 +5,7 @@ import * as v from "valibot";
 
 const MAX_SVG_ICON_LENGTH = 16384;
 const MAX_METADATA_BYTES = 8192;
+const MAX_APP_NAME_LENGTH = 100;
 
 export const SettingKeys = {
   AppEnv: "APP_ENV",
@@ -63,6 +64,32 @@ function isValidCookieDomain(raw: string): boolean {
   }
   const domainPattern = /^\.?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
   return domainPattern.test(trimmed);
+}
+
+function isValidResendDomain(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return true;
+  }
+  if (trimmed.length > 253) {
+    return false;
+  }
+  const domainPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+  return domainPattern.test(trimmed);
+}
+
+function isValidAppName(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (trimmed.length > MAX_APP_NAME_LENGTH) {
+    return false;
+  }
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i);
+    if (code <= 31 || code === 127) {
+      return false;
+    }
+  }
+  return !/[<>"]/.test(raw);
 }
 
 const NullableOptionalUrlSchema = v.optional(
@@ -143,14 +170,26 @@ export type AdminUpdateAppInput = v.InferOutput<typeof AdminUpdateAppSchema>;
 
 export const AdminUpdateSettingsSchema = v.strictObject({
   LOG_LEVEL: v.optional(v.nullable(v.picklist(["", "debug", "info", "warn", "error", "silent"]))),
-  APP_NAME: v.optional(v.nullable(v.string())),
+  APP_NAME: v.optional(
+    v.nullable(
+      v.pipe(
+        v.string(),
+        v.check(
+          isValidAppName,
+          "APP_NAME must not exceed 100 characters or contain control characters, quotes, or angle brackets.",
+        ),
+      ),
+    ),
+  ),
   BASE_URL: NullableOptionalUrlSchema,
   COOKIE_DOMAIN: v.optional(
     v.nullable(
       v.pipe(v.string(), v.check(isValidCookieDomain, "COOKIE_DOMAIN must be a valid domain name or localhost.")),
     ),
   ),
-  RESEND_DOMAIN: v.optional(v.nullable(v.string())),
+  RESEND_DOMAIN: v.optional(
+    v.nullable(v.pipe(v.string(), v.check(isValidResendDomain, "RESEND_DOMAIN must be a valid domain name."))),
+  ),
   RESEND_API_KEY: v.optional(v.nullable(v.string())),
   GITHUB_CLIENT_ID: v.optional(v.nullable(v.string())),
   GITHUB_CLIENT_SECRET: v.optional(v.nullable(v.string())),

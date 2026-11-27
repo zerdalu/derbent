@@ -83,6 +83,22 @@ const ALLOWED_SVG_ATTRIBUTES = new Set([
 
 const ATTRIBUTE_PAIR_REGEX = /^\s+([a-zA-Z_:][a-zA-Z0-9_.:-]*)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)')/;
 
+function decodeNumericEntities(input: string): string {
+  return input
+    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => {
+      const codePoint = Number.parseInt(hex, 16);
+      return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : "";
+    })
+    .replace(/&#([0-9]+);?/g, (_, dec: string) => {
+      const codePoint = Number.parseInt(dec, 10);
+      return Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : "";
+    });
+}
+
 function stripControlAndWhitespace(input: string): string {
   let out = "";
   for (let i = 0; i < input.length; i++) {
@@ -95,25 +111,30 @@ function stripControlAndWhitespace(input: string): string {
 }
 
 function hasUnsafeAttributeValue(attrName: string, rawValue: string): boolean {
-  const normalized = stripControlAndWhitespace(rawValue).toLowerCase();
+  // Disallow character entity references in all non-label SVG attributes to prevent entity-encoded url()/scheme smuggling
+  if (attrName !== "aria-label" && rawValue.includes("&")) {
+    return true;
+  }
+
+  const decodedValue = decodeNumericEntities(rawValue);
+  const normalized = stripControlAndWhitespace(decodedValue).toLowerCase();
 
   if (normalized.includes("javascript:") || normalized.includes("vbscript:") || normalized.includes("data:")) {
     return true;
   }
 
-  // Disallow HTML character entity encoding in URI or functional attributes
-  if ((attrName === "xmlns" || normalized.includes("url(")) && /&(?:#[0-9]+|#x[0-9a-f]+|[a-z0-9]+);/i.test(rawValue)) {
-    return true;
-  }
-
   // Only allow local fragment references in url(#...)
-  const urlMatches = rawValue.match(/url\([^)]*\)/gi);
+  const urlMatches = decodedValue.match(/url\([^)]*\)/gi);
   if (urlMatches) {
     for (const match of urlMatches) {
       if (!/^url\(\s*['"]?#[a-zA-Z0-9_.-]+['"]?\s*\)$/i.test(match.trim())) {
         return true;
       }
     }
+  }
+
+  if (normalized.includes("url(") && (!urlMatches || urlMatches.length === 0)) {
+    return true;
   }
 
   return false;

@@ -144,10 +144,12 @@ export class AuthPasswordService {
       await this.userRepo.markEmailVerified(user.id);
       if (user.app === "sso") {
         await this.userRepo.deleteUnverifiedByEmail(user.email, user.id);
+      } else {
+        await this.userRepo.deleteUnverifiedSsoByEmail(user.email);
       }
     }
 
-    await this.userTokenVersionRepo.clearUserVersion(user.id);
+    await this.userTokenVersionRepo.setUserVersion(user.id, user.token_version + 1);
     await this.loginAttemptRepo.clearAttempts(user.email, ip);
 
     await this.auditLogRepo.log({
@@ -191,7 +193,7 @@ export class AuthPasswordService {
 
     const phash = await hashPassword(newPassword, this.hashIterations);
     await this.userRepo.updatePassword(userId, phash);
-    await this.userTokenVersionRepo.clearUserVersion(userId);
+    await this.userTokenVersionRepo.setUserVersion(userId, user.token_version + 1);
 
     await this.auditLogRepo.log({
       action: "password_changed",

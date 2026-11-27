@@ -26,7 +26,7 @@ export function TwoFactorVerifyPage(): ReactElement {
   const redirect = params.get("redirect") || "/";
   const qs = buildAuthQuery(appId, redirect);
 
-  const [capturedToken] = useState<string>(() => params.get("token")?.trim() || "");
+  const [capturedToken] = useState<string>(() => params.get("token")?.trim() || "cookie");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,24 +73,6 @@ export function TwoFactorVerifyPage(): ReactElement {
     event.preventDefault();
     void submitVerify();
   };
-
-  if (!capturedToken) {
-    return (
-      <AuthShell title="Two-factor authentication" subtitle="Your verification challenge is missing or expired.">
-        <AuthAlert tone="danger">Please sign in again to start a new two-factor verification.</AuthAlert>
-        <Button
-          type="button"
-          variant={ButtonVariants.Secondary}
-          className="w-full"
-          onClick={() => {
-            navigate(`/login?${qs}`);
-          }}
-        >
-          Return to sign in
-        </Button>
-      </AuthShell>
-    );
-  }
 
   return (
     <AuthShell

@@ -1,3 +1,4 @@
+import { TWO_FACTOR_CHALLENGE_COOKIE } from "@worker/handlers/auth-two-factor.handler";
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import { buildCookieOptions, buildHostCookieOptions } from "@worker/utils/cookie";
@@ -261,8 +262,8 @@ export class OAuthHandler {
       const loginResult = await c.get("authService").loginWithOAuth(primaryEmail, "github", appId, ip, userAgent);
 
       if (loginResult.requires2FA) {
+        setCookie(c, TWO_FACTOR_CHALLENGE_COOKIE, loginResult.twoFactorToken, buildHostCookieOptions(config, 300));
         const qs = new URLSearchParams({
-          token: loginResult.twoFactorToken,
           app_id: appId,
           redirect,
         }).toString();
@@ -420,8 +421,8 @@ export class OAuthHandler {
         .loginWithOAuth(userResult.output.email, "google", appId, ip, userAgent);
 
       if (loginResult.requires2FA) {
+        setCookie(c, TWO_FACTOR_CHALLENGE_COOKIE, loginResult.twoFactorToken, buildHostCookieOptions(config, 300));
         const qs = new URLSearchParams({
-          token: loginResult.twoFactorToken,
           app_id: appId,
           redirect,
         }).toString();

@@ -37,10 +37,10 @@ export class LoginAttemptRepository {
          VALUES (?, 1, ?)
          ON CONFLICT(key) DO UPDATE SET
            count = CASE WHEN auth_counters.expires_at <= ? THEN 1 ELSE auth_counters.count + 1 END,
-           expires_at = excluded.expires_at
+           expires_at = CASE WHEN auth_counters.expires_at <= ? THEN excluded.expires_at ELSE auth_counters.expires_at END
          RETURNING count`,
       )
-      .bind(key, expiresAt, now)
+      .bind(key, expiresAt, now, now)
       .first<{ count: number }>();
 
     return row?.count ?? 1;
@@ -72,6 +72,10 @@ export class LoginAttemptRepository {
     ]);
 
     return { ipAttempts, emailAttempts };
+  }
+
+  async clearIpAttempts(email: string, ip: string): Promise<void> {
+    await this.db.prepare("DELETE FROM auth_counters WHERE key = ?").bind(this.getKey(email, ip)).run();
   }
 
   async clearAttempts(email: string, ip: string): Promise<void> {

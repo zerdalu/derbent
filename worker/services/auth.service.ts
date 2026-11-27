@@ -49,6 +49,7 @@ export class AuthService {
     auditLogRepo: AuditLogRepository,
     loginAttemptRepo: LoginAttemptRepository,
     hashIterations: number,
+    masterKey?: string,
   ) {
     this.userRepo = userRepo;
     this.tokenRepo = tokenRepo;
@@ -83,6 +84,8 @@ export class AuthService {
       appRepo,
       auditLogRepo,
       this.sessionService,
+      sessionRepo,
+      masterKey,
     );
     this.magicLinkService = new AuthMagicLinkService(
       userRepo,
@@ -109,7 +112,16 @@ export class AuthService {
     if (ipAttempts >= MAX_IP_LOGIN_ATTEMPTS) {
       throw new AppError("Too many failed login attempts from this network. Please try again in 15 minutes.", 429);
     }
-    if (emailAttempts >= MAX_EMAIL_LOGIN_ATTEMPTS) {
+    if (emailAttempts >= MAX_EMAIL_LOGIN_ATTEMPTS && ipAttempts > 0) {
+      throw new AppError("Too many failed login attempts for this account. Please try again in 15 minutes.", 429);
+    }
+
+    // Reserve attempt counter prior to PBKDF2 verification to prevent concurrent burst bypass
+    const reservedCounts = await this.loginAttemptRepo.incrementAttempts(normalizedEmail, ip);
+    if (reservedCounts.ipAttempts > MAX_IP_LOGIN_ATTEMPTS) {
+      throw new AppError("Too many failed login attempts from this network. Please try again in 15 minutes.", 429);
+    }
+    if (reservedCounts.emailAttempts > MAX_EMAIL_LOGIN_ATTEMPTS && reservedCounts.ipAttempts > 1) {
       throw new AppError("Too many failed login attempts for this account. Please try again in 15 minutes.", 429);
     }
 
@@ -117,7 +129,6 @@ export class AuthService {
     const isPasswordVerified = await this.passwordService.verifyPasswordSafe(password, user);
 
     if (!user || !isPasswordVerified) {
-      const nextCounts = await this.loginAttemptRepo.incrementAttempts(normalizedEmail, ip);
       await this.auditLogRepo.log({
         action: "login_failed",
         email: normalizedEmail,
@@ -126,13 +137,16 @@ export class AuthService {
         details: { reason: "invalid_credentials", appId },
       });
 
-      if (nextCounts.ipAttempts === MAX_IP_LOGIN_ATTEMPTS || nextCounts.emailAttempts === MAX_EMAIL_LOGIN_ATTEMPTS) {
+      if (
+        reservedCounts.ipAttempts === MAX_IP_LOGIN_ATTEMPTS ||
+        reservedCounts.emailAttempts === MAX_EMAIL_LOGIN_ATTEMPTS
+      ) {
         await this.auditLogRepo.log({
           action: "login_locked_out",
           email: normalizedEmail,
           ip,
           userAgent,
-          details: { attempts: nextCounts.ipAttempts, emailAttempts: nextCounts.emailAttempts },
+          details: { attempts: reservedCounts.ipAttempts, emailAttempts: reservedCounts.emailAttempts },
         });
       }
 
@@ -158,7 +172,11 @@ export class AuthService {
       throw new AppError("This account has been locked. Please contact support.", 403);
     }
 
-    await this.loginAttemptRepo.clearAttempts(normalizedEmail, ip);
+    if (reservedCounts.emailAttempts >= MAX_EMAIL_LOGIN_ATTEMPTS) {
+      await this.loginAttemptRepo.clearIpAttempts(normalizedEmail, ip);
+    } else {
+      await this.loginAttemptRepo.clearAttempts(normalizedEmail, ip);
+    }
 
     if (user.email_verified === 0) {
       throw new AppError("Email verification is required.", 403, "EMAIL_NOT_VERIFIED");
@@ -281,8 +299,10 @@ export class AuthService {
       await this.userRepo.markEmailVerified(user.id);
       if (user.app === "sso") {
         await this.userRepo.deleteUnverifiedByEmail(normalizedEmail, user.id);
+      } else {
+        await this.userRepo.deleteUnverifiedSsoByEmail(normalizedEmail);
       }
-      await this.userTokenVersionRepo.clearUserVersion(user.id);
+      await this.userTokenVersionRepo.setUserVersion(user.id, user.token_version + 1);
       const refreshedUser = await this.userRepo.findById(user.id);
       if (!refreshedUser) {
         throw new AppError("Failed to sync user", 500);
@@ -332,14 +352,16 @@ export class AuthService {
         throw new AppError("A verification email was recently sent. Please wait a minute and try again.", 429);
       }
 
+      // Bind the new password hash to the verification token rather than overwriting users.phash prior to email confirmation
       const phash = await hashPassword(password, this.hashIterations);
-      await this.userRepo.updatePassword(existingAppUser.id, phash);
-      await this.userTokenVersionRepo.clearUserVersion(existingAppUser.id);
-      const refreshedUser = await this.userRepo.findById(existingAppUser.id);
-      const nextTokenVersion = refreshedUser?.token_version ?? existingAppUser.token_version + 1;
-
       const token = crypto.randomUUID();
-      await this.tokenRepo.saveEmailVerificationToken(token, existingAppUser.id, nextTokenVersion);
+      await this.tokenRepo.saveEmailVerificationToken(
+        token,
+        existingAppUser.id,
+        existingAppUser.token_version,
+        900,
+        phash,
+      );
 
       try {
         await this.emailService.sendVerificationEmail(normalizedEmail, token, appId, redirect);
@@ -469,9 +491,16 @@ export class AuthService {
 
     await assertNoVerifiedAccountConflict(this.userRepo, user);
 
+    if (tokenData.pendingPhash) {
+      await this.userRepo.updatePassword(user.id, tokenData.pendingPhash);
+      await this.userTokenVersionRepo.setUserVersion(user.id, user.token_version + 1);
+    }
+
     await this.userRepo.markEmailVerified(user.id);
     if (user.app === "sso") {
       await this.userRepo.deleteUnverifiedByEmail(user.email, user.id);
+    } else {
+      await this.userRepo.deleteUnverifiedSsoByEmail(user.email);
     }
 
     await this.auditLogRepo.log({
@@ -541,12 +570,24 @@ export class AuthService {
     return this.twoFactorService.verifyTwoFactorLogin(token, code, ip, userAgent, expectedAppId);
   }
 
-  enableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
-    return this.twoFactorService.enableTwoFactor(userId, code, ip, userAgent);
+  enableTwoFactor(
+    userId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+    activeSessionId?: string,
+  ): Promise<void> {
+    return this.twoFactorService.enableTwoFactor(userId, code, ip, userAgent, activeSessionId);
   }
 
-  disableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
-    return this.twoFactorService.disableTwoFactor(userId, code, ip, userAgent);
+  disableTwoFactor(
+    userId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+    activeSessionId?: string,
+  ): Promise<void> {
+    return this.twoFactorService.disableTwoFactor(userId, code, ip, userAgent, activeSessionId);
   }
 
   getTwoFactorSetupSecret(userId: string): Promise<string | null> {

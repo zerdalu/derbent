@@ -46,7 +46,20 @@ function resolveHttpErrorCode(status: number): string {
   }
 }
 
-app.use("*", secureHeaders());
+app.use(
+  "*",
+  secureHeaders({
+    xFrameOptions: "DENY",
+    referrerPolicy: "strict-origin-when-cross-origin",
+    contentSecurityPolicy: {
+      defaultSrc: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  }),
+);
 app.use("*", configMiddleware());
 
 app.use("*", async (c, next) => {
@@ -358,6 +371,10 @@ export default class DerbentWorker extends WorkerEntrypoint<CloudflareBindings> 
 
     for (const sessionId of candidates) {
       try {
+        const existingSession = await services.sessionRepo.get(sessionId);
+        if (!existingSession) {
+          continue;
+        }
         await services.authService.logout(sessionId, normalizedAppId);
         loggedOutAny = true;
       } catch (error: unknown) {
@@ -377,6 +394,15 @@ export default class DerbentWorker extends WorkerEntrypoint<CloudflareBindings> 
         status,
         code: lastError.code,
         message: lastError.message,
+      };
+    }
+
+    if (!lastError) {
+      return {
+        ok: false,
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Session not found",
       };
     }
 

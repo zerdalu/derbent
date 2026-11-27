@@ -1,3 +1,5 @@
+export const REVOKED_USER_TOKEN_VERSION = -1;
+
 export class UserTokenVersionRepository {
   private readonly kv: KVNamespace;
 
@@ -21,6 +23,10 @@ export class UserTokenVersionRepository {
 
   async setUserVersion(userId: string, version: number): Promise<void> {
     await this.kv.put(this.getKey(userId), String(version), { expirationTtl: 604800 });
+  }
+
+  async markUserRevoked(userId: string): Promise<void> {
+    await this.setUserVersion(userId, REVOKED_USER_TOKEN_VERSION);
   }
 
   async clearUserVersion(userId: string): Promise<void> {

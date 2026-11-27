@@ -1,12 +1,13 @@
 import type { AppRepository } from "@worker/repositories/app.repository";
 import type { AuditLogRepository } from "@worker/repositories/audit-log.repository";
+import type { SessionRepository } from "@worker/repositories/session.repository";
 import type { TokenRepository } from "@worker/repositories/token.repository";
 import type { UserTokenVersionRepository } from "@worker/repositories/user-token-version.repository";
 import type { UserRepository } from "@worker/repositories/user.repository";
 import type { AuthSessionService } from "@worker/services/auth-session.service";
 import { AppError } from "@worker/types/errors";
 import type { LoginSuccessResult } from "@worker/types/models";
-import { hashSessionRef } from "@worker/utils/crypto";
+import { decryptTotpSecret, encryptTotpSecret, hashSessionRef } from "@worker/utils/crypto";
 import { verifyTOTP } from "@worker/utils/totp";
 
 const MAX_2FA_TOKEN_ATTEMPTS = 5;
@@ -18,6 +19,8 @@ export class AuthTwoFactorService {
   private readonly appRepo: AppRepository;
   private readonly auditLogRepo: AuditLogRepository;
   private readonly sessionService: AuthSessionService;
+  private readonly sessionRepo: SessionRepository | undefined;
+  private readonly masterKey: string | undefined;
 
   constructor(
     userRepo: UserRepository,
@@ -26,6 +29,8 @@ export class AuthTwoFactorService {
     appRepo: AppRepository,
     auditLogRepo: AuditLogRepository,
     sessionService: AuthSessionService,
+    sessionRepo?: SessionRepository,
+    masterKey?: string,
   ) {
     this.userRepo = userRepo;
     this.tokenRepo = tokenRepo;
@@ -33,6 +38,25 @@ export class AuthTwoFactorService {
     this.appRepo = appRepo;
     this.auditLogRepo = auditLogRepo;
     this.sessionService = sessionService;
+    this.sessionRepo = sessionRepo;
+    this.masterKey = masterKey;
+  }
+
+  private async rotateVersionKeepingCurrentSession(userId: string, activeSessionId?: string): Promise<void> {
+    if (!activeSessionId || !this.sessionRepo) {
+      return;
+    }
+
+    const newVersion = await this.userRepo.incrementTokenVersion(userId);
+    await this.userTokenVersionRepo.setUserVersion(userId, newVersion);
+
+    const activeSession = await this.sessionRepo.get(activeSessionId);
+    if (activeSession && activeSession.userId === userId) {
+      await this.sessionRepo.create(activeSessionId, {
+        ...activeSession,
+        tokenVersion: newVersion,
+      });
+    }
   }
 
   async verifyTwoFactorLogin(
@@ -110,14 +134,20 @@ export class AuthTwoFactorService {
       throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
     }
 
-    const isValid = await verifyTOTP(user.two_factor_secret, code);
-    if (!isValid) {
-      const [tokenAttempts, userAttempts] = await Promise.all([
-        this.tokenRepo.incrementTwoFactorLoginAttempts(token),
-        this.tokenRepo.incrementTotpActionAttempts(user.id),
-      ]);
-      const effectiveAttempts = Math.max(tokenAttempts, userAttempts);
+    // Atomically reserve the attempt prior to TOTP verification to prevent concurrent burst bypass
+    const [tokenAttempts, userAttempts] = await Promise.all([
+      this.tokenRepo.incrementTwoFactorLoginAttempts(token),
+      this.tokenRepo.incrementTotpActionAttempts(user.id),
+    ]);
+    const effectiveAttempts = Math.max(tokenAttempts, userAttempts);
+    if (effectiveAttempts > MAX_2FA_TOKEN_ATTEMPTS) {
+      await this.tokenRepo.deleteTwoFactorLoginToken(token);
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
 
+    const plainSecret = await decryptTotpSecret(user.two_factor_secret, this.masterKey);
+    const isValid = await verifyTOTP(plainSecret, code);
+    if (!isValid) {
       await this.auditLogRepo.log({
         action: "login_2fa_failed",
         userId: user.id,
@@ -160,7 +190,13 @@ export class AuthTwoFactorService {
     return { requires2FA: false, sessionId, app: user.app };
   }
 
-  async enableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
+  async enableTwoFactor(
+    userId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+    activeSessionId?: string,
+  ): Promise<void> {
     const user = await this.userRepo.findById(userId);
     if (!user) {
       throw new AppError("Authentication required.", 401);
@@ -186,9 +222,14 @@ export class AuthTwoFactorService {
       throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
     }
 
+    const attempts = await this.tokenRepo.incrementTotpActionAttempts(userId);
+    if (attempts > MAX_2FA_TOKEN_ATTEMPTS) {
+      await this.tokenRepo.deleteTwoFactorSetupSecret(userId);
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
+
     const isValid = await verifyTOTP(secret, code);
     if (!isValid) {
-      const attempts = await this.tokenRepo.incrementTotpActionAttempts(userId);
       if (attempts >= MAX_2FA_TOKEN_ATTEMPTS) {
         await this.tokenRepo.deleteTwoFactorSetupSecret(userId);
         throw new AppError("Too many failed verification attempts. Setup session has been reset.", 429);
@@ -201,9 +242,11 @@ export class AuthTwoFactorService {
       throw new AppError("Code has already been used. Please wait for the next authenticator code.", 400);
     }
 
+    const storedSecret = await encryptTotpSecret(secret, this.masterKey);
     await this.tokenRepo.clearTotpActionAttempts(userId);
-    await this.userRepo.enableTwoFactor(userId, secret);
+    await this.userRepo.enableTwoFactor(userId, storedSecret);
     await this.tokenRepo.deleteTwoFactorSetupSecret(userId);
+    await this.rotateVersionKeepingCurrentSession(userId, activeSessionId);
 
     await this.auditLogRepo.log({
       action: "2fa_enabled",
@@ -214,7 +257,13 @@ export class AuthTwoFactorService {
     });
   }
 
-  async disableTwoFactor(userId: string, code: string, ip?: string, userAgent?: string): Promise<void> {
+  async disableTwoFactor(
+    userId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+    activeSessionId?: string,
+  ): Promise<void> {
     const user = await this.userRepo.findById(userId);
     if (!user || user.two_factor_enabled === 0 || !user.two_factor_secret) {
       throw new AppError("2FA is not enabled.", 400);
@@ -229,9 +278,14 @@ export class AuthTwoFactorService {
       throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
     }
 
-    const isValid = await verifyTOTP(user.two_factor_secret, code);
+    const attempts = await this.tokenRepo.incrementTotpActionAttempts(userId);
+    if (attempts > MAX_2FA_TOKEN_ATTEMPTS) {
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
+
+    const plainSecret = await decryptTotpSecret(user.two_factor_secret, this.masterKey);
+    const isValid = await verifyTOTP(plainSecret, code);
     if (!isValid) {
-      const attempts = await this.tokenRepo.incrementTotpActionAttempts(userId);
       await this.auditLogRepo.log({
         action: "2fa_disable_failed",
         userId,
@@ -255,6 +309,7 @@ export class AuthTwoFactorService {
 
     await this.tokenRepo.clearTotpActionAttempts(userId);
     await this.userRepo.disableTwoFactor(userId);
+    await this.rotateVersionKeepingCurrentSession(userId, activeSessionId);
 
     await this.auditLogRepo.log({
       action: "2fa_disabled",
