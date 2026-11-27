@@ -1,0 +1,603 @@
+@source "../ui";
+@import "tailwindcss";
+
+@custom-variant hover-fine {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
+@theme {
+  /* Base Spacing Unit */
+  --spacing: 0.25rem;
+
+  /* Typography Families */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Typography Metrics */
+  --tracking-ui: -0.01em;
+  --tracking-mono: 0.04em;
+  --tracking-heading: -0.02em;
+  --font-weight-ui: 500;
+  --font-weight-heading: 600;
+
+  /* Surface Hierarchy (Light: Architectural Platinum / Dark: Stepped Matte Obsidian) */
+  --color-surface-canvas: light-dark(oklch(0.955 0.002 265), oklch(0.11 0.003 265));
+  --color-surface-100: light-dark(oklch(0.992 0.002 265 / 0.92), oklch(0.148 0.004 265 / 0.92));
+  --color-surface-200: light-dark(oklch(0.985 0.002 265 / 0.97), oklch(0.178 0.004 265 / 0.96));
+  --color-surface-300: light-dark(oklch(0.925 0.003 265), oklch(0.215 0.005 265));
+  --color-surface-sunken: light-dark(oklch(0.905 0.003 265), oklch(0.085 0.003 265));
+  --color-surface-hover: light-dark(oklch(0.88 0.004 265), oklch(0.255 0.006 265));
+  --color-surface-active: light-dark(oklch(0.845 0.005 265), oklch(0.295 0.006 265));
+  --color-surface-backdrop: light-dark(oklch(0.12 0.004 265 / 0.52), oklch(0.05 0.003 265 / 0.82));
+
+  /* Text Hierarchy (Strict WCAG AA Compliant) */
+  --color-text-primary: light-dark(oklch(0.14 0.004 265), oklch(0.97 0.002 265));
+  --color-text-secondary: light-dark(oklch(0.33 0.005 265), oklch(0.815 0.004 265));
+  --color-text-muted: light-dark(oklch(0.44 0.005 265), oklch(0.695 0.005 265));
+  --color-text-disabled: light-dark(oklch(0.56 0.004 265), oklch(0.53 0.004 265));
+  --color-text-on-accent: light-dark(oklch(0.985 0.002 265), oklch(0.11 0.003 265));
+  --color-text-inverse: light-dark(oklch(0.965 0.002 265), oklch(0.12 0.003 265));
+
+  /* Borders & Specular Rim Lines */
+  --color-border-subtle: light-dark(oklch(0.2 0.004 265 / 0.14), oklch(0.98 0 0 / 0.1));
+  --color-border-default: light-dark(oklch(0.2 0.005 265 / 0.28), oklch(0.98 0 0 / 0.2));
+  --color-border-strong: light-dark(oklch(0.16 0.006 265 / 0.5), oklch(0.98 0 0 / 0.44));
+  --color-border-focus: light-dark(oklch(0.18 0.005 265), oklch(0.97 0 0));
+
+  /* Brand & Accent (Photonic White in Dark / Carbon Obsidian in Light) */
+  --color-accent-primary: light-dark(oklch(0.17 0.004 265), oklch(0.965 0.002 265));
+  --color-accent-primary-hover: light-dark(oklch(0.25 0.005 265), oklch(1 0 0));
+  --color-accent-primary-active: light-dark(oklch(0.12 0.004 265), oklch(0.9 0.003 265));
+  --color-accent-subtle: light-dark(oklch(0.17 0.004 265 / 0.1), oklch(0.98 0 0 / 0.12));
+  --color-accent-border: light-dark(oklch(0.17 0.004 265 / 0.38), oklch(0.98 0 0 / 0.42));
+  --color-accent-secondary: light-dark(oklch(0.36 0.006 265), oklch(0.82 0.004 265));
+
+  /* Stepped Obsidian Vault & Photonic Light Bar Tokens */
+  --color-node-frame: light-dark(oklch(0.2 0.005 265 / 0.2), oklch(0.98 0 0 / 0.12));
+  --color-node-frame-active: light-dark(oklch(0.17 0.005 265 / 0.42), oklch(0.98 0 0 / 0.28));
+  --color-node-step-outer: light-dark(oklch(0.935 0.003 265 / 0.72), oklch(0.132 0.003 265 / 0.86));
+  --color-node-step-inner: light-dark(oklch(0.915 0.003 265 / 0.85), oklch(0.105 0.003 265 / 0.94));
+  --color-node-surface: light-dark(oklch(0.992 0.002 265 / 0.9), oklch(0.142 0.004 265 / 0.92));
+  --color-node-border: light-dark(oklch(0.2 0.005 265 / 0.22), oklch(0.98 0 0 / 0.16));
+  --color-node-featured-border: light-dark(oklch(0.17 0.005 265 / 0.48), oklch(0.98 0 0 / 0.46));
+  --color-node-featured-text: light-dark(oklch(0.14 0.004 265), oklch(0.98 0.002 265));
+  --color-node-featured-muted: light-dark(oklch(0.34 0.005 265), oklch(0.84 0.004 265));
+  --color-node-featured-danger: light-dark(oklch(0.42 0.18 26), oklch(0.84 0.14 26));
+  --color-node-featured-well: light-dark(oklch(0.975 0.003 265 / 0.88), oklch(0.1 0.003 265 / 0.78));
+  --color-node-featured-well-border: light-dark(oklch(0.2 0.005 265 / 0.3), oklch(0.98 0 0 / 0.26));
+  --color-node-glow: light-dark(oklch(0.2 0.005 265 / 0.12), oklch(1 0 0 / 0.24));
+  --color-connector-active: light-dark(oklch(0.16 0.004 265), oklch(0.99 0 0));
+  --color-connector-muted: light-dark(oklch(0.38 0.005 265 / 0.45), oklch(0.85 0.004 265 / 0.38));
+
+  /* Semantic Status: Success */
+  --color-status-success: light-dark(oklch(0.46 0.14 152), oklch(0.82 0.13 152));
+  --color-status-success-bg: light-dark(oklch(0.48 0.14 152 / 0.11), oklch(0.82 0.13 152 / 0.14));
+  --color-status-success-border: light-dark(oklch(0.46 0.14 152 / 0.42), oklch(0.82 0.13 152 / 0.42));
+  --color-status-success-text: light-dark(oklch(0.33 0.11 152), oklch(0.88 0.11 152));
+
+  /* Semantic Status: Warning */
+  --color-status-warning: light-dark(oklch(0.58 0.14 78), oklch(0.82 0.14 84));
+  --color-status-warning-bg: light-dark(oklch(0.78 0.14 84 / 0.16), oklch(0.82 0.14 84 / 0.14));
+  --color-status-warning-border: light-dark(oklch(0.52 0.13 78 / 0.45), oklch(0.82 0.14 84 / 0.42));
+  --color-status-warning-text: light-dark(oklch(0.37 0.11 74), oklch(0.9 0.11 84));
+
+  /* Semantic Status: Danger */
+  --color-status-danger: light-dark(oklch(0.5 0.19 26), oklch(0.68 0.19 26));
+  --color-status-danger-active: light-dark(oklch(0.44 0.19 26), oklch(0.64 0.19 26));
+  --color-status-danger-bg: light-dark(oklch(0.55 0.19 26 / 0.11), oklch(0.68 0.19 26 / 0.16));
+  --color-status-danger-border: light-dark(oklch(0.5 0.19 26 / 0.44), oklch(0.68 0.19 26 / 0.46));
+  --color-status-danger-text: light-dark(oklch(0.39 0.17 26), oklch(0.85 0.13 26));
+
+  /* Semantic Status: Info */
+  --color-status-info: light-dark(oklch(0.46 0.11 235), oklch(0.78 0.1 230));
+  --color-status-info-bg: light-dark(oklch(0.5 0.11 235 / 0.11), oklch(0.78 0.1 230 / 0.14));
+  --color-status-info-border: light-dark(oklch(0.46 0.11 235 / 0.42), oklch(0.78 0.1 230 / 0.42));
+  --color-status-info-text: light-dark(oklch(0.35 0.1 235), oklch(0.88 0.08 230));
+
+  /* Architectural Geometry (Radii) */
+  --radius-control: 0.5rem;
+  --radius-panel: 1.125rem;
+  --radius-panel-inner: max(0px, calc(var(--radius-panel) - 1px));
+  --radius-node-inner: calc(var(--radius-panel) + 0.375rem);
+  --radius-node-frame: calc(var(--radius-panel) + 0.75rem);
+  --radius-vault-diamond: 2.5rem;
+  --radius-badge: 9999px;
+  --radius-toggle: 0.3125rem;
+  --radius-track: 9999px;
+
+  /* Elevation, Bevel Rim & Photonic Glow (Shadows) */
+  --shadow-control:
+    0 1px 2px 0 light-dark(oklch(0.12 0.004 265 / 0.08), oklch(0 0 0 / 0.55)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.09));
+  --shadow-panel:
+    0 24px 48px -12px light-dark(oklch(0.14 0.005 265 / 0.14), oklch(0 0 0 / 0.78)),
+    0 4px 12px -2px light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0 0 0 / 0.5)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.85), oklch(1 0 0 / 0.12));
+  --shadow-bezel-step:
+    0 18px 40px -14px light-dark(oklch(0.14 0.005 265 / 0.12), oklch(0 0 0 / 0.72)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.7), oklch(1 0 0 / 0.08)),
+    inset 0 -1px 0 0 light-dark(oklch(0.14 0.005 265 / 0.08), oklch(0 0 0 / 0.6));
+  --shadow-recessed-capsule:
+    inset 0 1px 2px 0 light-dark(oklch(0.14 0.005 265 / 0.1), oklch(0 0 0 / 0.65)),
+    0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.1));
+  --shadow-photonic-bar:
+    0 0 10px 1px light-dark(oklch(0.16 0.004 265 / 0.28), oklch(1 0 0 / 0.85)),
+    0 0 22px 4px light-dark(oklch(0.16 0.004 265 / 0.12), oklch(1 0 0 / 0.42));
+  --shadow-floating:
+    0 20px 44px -8px light-dark(oklch(0.14 0.005 265 / 0.18), oklch(0 0 0 / 0.78)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.75), oklch(1 0 0 / 0.12));
+  --shadow-modal:
+    0 32px 64px -12px light-dark(oklch(0.12 0.005 265 / 0.28), oklch(0 0 0 / 0.88)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.8), oklch(1 0 0 / 0.14));
+  --shadow-node-featured:
+    0 28px 60px -14px light-dark(oklch(0.16 0.005 265 / 0.2), oklch(0 0 0 / 0.85)),
+    0 0 36px -8px light-dark(oklch(0.16 0.005 265 / 0.12), oklch(1 0 0 / 0.22)),
+    inset 0 1px 0 0 light-dark(oklch(1 0 0 / 0.9), oklch(1 0 0 / 0.28));
+
+  /* Backdrop & Transition Blur */
+  --blur-overlay: 8px;
+  --blur-floating: 16px;
+  --blur-transition: 2px;
+
+  /* Motion Curves & Animations */
+  --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --animate-progress-indeterminate: progress-indeterminate 1.4s var(--ease-in-out) infinite;
+
+  @keyframes progress-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
+}
+
+/* Control Density Utilities */
+@utility h-control-xs {
+  height: var(--control-h-xs);
+}
+
+@utility h-control-sm {
+  height: var(--control-h-sm);
+}
+
+@utility h-control-md {
+  height: var(--control-h-md);
+}
+
+@utility h-control-lg {
+  height: var(--control-h-lg);
+}
+
+@utility min-h-control-sm {
+  min-height: var(--control-h-sm);
+}
+
+@utility size-control-xs {
+  width: var(--control-h-xs);
+  height: var(--control-h-xs);
+}
+
+@utility size-control-sm {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+@utility size-control-md {
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+}
+
+@utility size-control-lg {
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+}
+
+@utility px-control-px-xs {
+  padding-inline: var(--control-px-xs);
+}
+
+@utility px-control-px-sm {
+  padding-inline: var(--control-px-sm);
+}
+
+@utility px-control-px-md {
+  padding-inline: var(--control-px-md);
+}
+
+@utility px-control-px-lg {
+  padding-inline: var(--control-px-lg);
+}
+
+/* Panel Spacing Utilities */
+@utility p-panel-sm {
+  padding: var(--panel-p-sm);
+}
+
+@utility p-panel {
+  padding: var(--panel-p);
+}
+
+@utility p-panel-lg {
+  padding: var(--panel-p-lg);
+}
+
+@utility px-panel {
+  padding-inline: var(--panel-p);
+}
+
+@utility py-panel-sm {
+  padding-block: var(--panel-p-sm);
+}
+
+/* Spatial Obsidian Vault Utilities */
+@utility bg-node-glass {
+  background-color: var(--color-node-surface);
+  background-image: var(--node-surface-image);
+}
+
+@utility bg-node-featured {
+  background-image: var(--node-featured-image);
+}
+
+@utility size-vault-ring-sm {
+  width: 22rem;
+  height: 22rem;
+}
+
+@utility size-vault-ring-md {
+  width: 30rem;
+  height: 30rem;
+}
+
+@utility size-vault-ring-lg {
+  width: 38rem;
+  height: 38rem;
+}
+
+/* View Transition Morphing Utilities */
+@utility vt-auth-header {
+  view-transition-name: auth-header;
+}
+
+@utility vt-auth-shell {
+  view-transition-name: auth-shell;
+}
+
+@utility vt-auth-footer {
+  view-transition-name: auth-footer;
+}
+
+/* Hit Target & Control Geometry Utilities */
+@utility min-h-hit {
+  min-height: var(--hit-target-min);
+}
+
+@utility min-w-hit {
+  min-width: var(--hit-target-min);
+}
+
+@utility hit-target {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: var(--hit-target-min);
+    min-height: var(--hit-target-min);
+    translate: -50% -50%;
+  }
+}
+
+@utility size-checkbox {
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+}
+
+@utility size-switch {
+  width: var(--switch-w);
+  height: var(--switch-h);
+  padding: var(--switch-pad);
+}
+
+@utility size-switch-thumb {
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
+}
+
+@utility h-slider-track {
+  height: var(--slider-track-h);
+}
+
+@utility size-slider-thumb {
+  width: var(--slider-thumb);
+  height: var(--slider-thumb);
+}
+
+@utility h-progress-track {
+  height: var(--progress-track-h);
+}
+
+/* Focus Ring & Disabled State Utilities */
+@utility focus-ring {
+  &:focus-visible {
+    outline-style: solid;
+    outline-width: var(--focus-ring-width);
+    outline-offset: var(--focus-ring-offset);
+    outline-color: var(--color-border-focus);
+  }
+}
+
+@utility focus-ring-tight {
+  &:focus-visible {
+    outline-style: solid;
+    outline-width: var(--focus-ring-width);
+    outline-offset: var(--focus-ring-offset-tight);
+    outline-color: var(--color-border-focus);
+  }
+}
+
+@utility opacity-disabled {
+  opacity: var(--opacity-disabled);
+}
+
+/* Explicit Motion Utilities */
+@utility transition-control {
+  transition-property: color, background-color, border-color, scale, box-shadow;
+}
+
+@utility transition-popup {
+  transition-property: scale, opacity;
+}
+
+@utility transition-switch-thumb {
+  transition-property: translate, background-color;
+}
+
+@utility transition-toast {
+  transition-property: translate, transform, opacity;
+}
+
+@utility transition-tabs {
+  transition-property: translate, width;
+}
+
+@utility transition-progress {
+  transition-property: width;
+}
+
+@utility transition-icon {
+  transition-property: opacity, scale, filter;
+}
+
+@utility transition-node {
+  transition-property: border-color, box-shadow, background-color, opacity;
+}
+
+@utility transition-connector {
+  transition-property: stroke, opacity;
+}
+
+@utility duration-exit {
+  --tw-duration: var(--duration-exit);
+  transition-duration: var(--duration-exit);
+}
+
+@utility duration-tooltip {
+  --tw-duration: var(--duration-tooltip);
+  transition-duration: var(--duration-tooltip);
+}
+
+@utility duration-control {
+  --tw-duration: var(--duration-control);
+  transition-duration: var(--duration-control);
+}
+
+@utility duration-overlay {
+  --tw-duration: var(--duration-overlay);
+  transition-duration: var(--duration-overlay);
+}
+
+@utility duration-toast {
+  --tw-duration: var(--duration-toast);
+  transition-duration: var(--duration-toast);
+}
+
+@utility ease-toggle {
+  --tw-ease: var(--ease-toggle);
+  transition-timing-function: var(--ease-toggle);
+}
+
+@utility scale-press {
+  scale: var(--scale-press);
+}
+
+@utility scale-press-sm {
+  scale: var(--scale-press-sm);
+}
+
+@utility scale-popup {
+  scale: var(--scale-popup);
+}
+
+@utility scale-tooltip {
+  scale: var(--scale-tooltip);
+}
+
+@utility scale-thumb-hover {
+  scale: var(--scale-thumb-hover);
+}
+
+@utility scale-thumb-drag {
+  scale: var(--scale-thumb-drag);
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+
+    /* Control Density & Panel Spacing Tokens */
+    --control-h-xs: 1.5rem;
+    --control-h-sm: 1.875rem;
+    --control-h-md: 2.25rem;
+    --control-h-lg: 2.625rem;
+    --control-px-xs: 0.5rem;
+    --control-px-sm: 0.625rem;
+    --control-px-md: 0.875rem;
+    --control-px-lg: 1.125rem;
+    --panel-p-sm: 0.875rem;
+    --panel-p: 1.25rem;
+    --panel-p-lg: 1.5rem;
+
+    /* Interactive Control Geometry Tokens */
+    --hit-target-min: 1.5rem;
+    --checkbox-size: 1.125rem;
+    --switch-w: 2.75rem;
+    --switch-h: 1.5rem;
+    --switch-pad: 0.125rem;
+    --switch-thumb: calc(var(--switch-h) - (var(--switch-pad) * 2) - 2px);
+    --switch-travel: calc(var(--switch-w) - var(--switch-h));
+    --slider-track-h: 0.5rem;
+    --slider-thumb: 1.125rem;
+    --progress-track-h: 0.5rem;
+
+    /* Focus Ring & State Tokens */
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+    --focus-ring-offset-tight: 1px;
+    --opacity-disabled: 0.45;
+
+    /* Motion Tokens */
+    --duration-exit: 100ms;
+    --duration-tooltip: 125ms;
+    --duration-control: 150ms;
+    --duration-overlay: 200ms;
+    --duration-toast: 250ms;
+    --ease-toggle: var(--ease-ui);
+    --scale-press: 0.97;
+    --scale-press-sm: 0.95;
+    --scale-popup: 0.95;
+    --scale-tooltip: 0.97;
+    --scale-thumb-hover: 1.05;
+    --scale-thumb-drag: 1.1;
+
+    /* Obsidian Photonic Canvas & Specular Surface Gradients */
+    --surface-canvas-image:
+      radial-gradient(
+        48% 48% at 50% 50%,
+        light-dark(oklch(1 0 0 / 0.65), oklch(0.24 0.005 265 / 0.42)) 0%,
+        transparent 72%
+      ),
+      radial-gradient(
+        80% 60% at 50% 0%,
+        light-dark(oklch(0.88 0.004 265 / 0.35), oklch(0.98 0 0 / 0.04)) 0%,
+        transparent 64%
+      );
+    --node-surface-image: linear-gradient(
+      180deg,
+      light-dark(oklch(1 0 0 / 0.85), oklch(1 0 0 / 0.055)) 0%,
+      light-dark(oklch(0.97 0.002 265 / 0.4), oklch(0.14 0.004 265 / 0.02)) 38%,
+      light-dark(oklch(0.94 0.003 265 / 0.2), oklch(0.08 0.003 265 / 0.35)) 100%
+    );
+    --node-featured-image:
+      radial-gradient(
+        85% 70% at 50% 0%,
+        light-dark(oklch(0.88 0.005 265 / 0.6), oklch(1 0 0 / 0.14)) 0%,
+        transparent 62%
+      ),
+      linear-gradient(
+        180deg,
+        light-dark(oklch(0.96 0.003 265 / 0.98), oklch(0.21 0.005 265 / 0.96)) 0%,
+        light-dark(oklch(0.92 0.004 265 / 0.98), oklch(0.13 0.004 265 / 0.98)) 100%
+      );
+    --scrollbar-size: 6px;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  ::view-transition-group(auth-header),
+  ::view-transition-group(auth-shell),
+  ::view-transition-group(auth-footer) {
+    animation-duration: var(--duration-overlay);
+    animation-timing-function: var(--ease-ui);
+  }
+
+  ::view-transition-old(auth-shell),
+  ::view-transition-new(auth-shell) {
+    height: 100%;
+    overflow: clip;
+    animation-duration: var(--duration-control);
+    animation-timing-function: var(--ease-ui);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --scale-press: 1;
+      --scale-press-sm: 1;
+      --scale-popup: 1;
+      --scale-tooltip: 1;
+      --scale-thumb-hover: 1;
+      --scale-thumb-drag: 1;
+    }
+  }
+
+  #root {
+    isolation: isolate;
+  }
+
+  body {
+    position: relative;
+    font-family: var(--font-sans);
+    background-color: var(--color-surface-canvas);
+    background-image: var(--surface-canvas-image);
+    color: var(--color-text-primary);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-default) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-default);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-border-strong);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-accent-primary);
+  }
+}
