@@ -1,7 +1,7 @@
 CREATE TABLE users (
     id TEXT PRIMARY KEY,                    -- UUIDv7 or NanoID
     app TEXT NOT NULL,                      -- 'sso', 'geveze', 'hodan', etc.
-    email TEXT NOT NULL,                    -- 
+    email TEXT NOT NULL,                    --
     email_verified BOOLEAN DEFAULT 0,       -- 0 = False, 1 = True
     phash TEXT NOT NULL,                    -- Password Hash - PBKDF2 (Web Crypto API)
     token_version INTEGER DEFAULT 1,        -- For tracking session validity
@@ -20,6 +20,10 @@ CREATE UNIQUE INDEX idx_users_email_app ON users(email, app);
 -- Fast lookup for emails across all apps
 CREATE INDEX idx_users_email ON users(email);
 
+-- Fast lookup by application and creation timestamp
+CREATE INDEX idx_users_app ON users(app);
+CREATE INDEX idx_users_created_at ON users(created_at);
+
 -----------------------------------------------
 
 CREATE TABLE audit_logs (
@@ -36,6 +40,7 @@ CREATE TABLE audit_logs (
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_email ON audit_logs(email);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX idx_audit_logs_action_created_at ON audit_logs(action, created_at);
 
 -----------------------------------------------
 
@@ -55,11 +60,11 @@ CREATE TABLE apps (
 -- Insert the foundational SSO app
 INSERT INTO apps (id, name, description, icon, prod_url, dev_url, allow_signups, allow_logins)
 VALUES (
-    'sso', 
-    'Single sign-on', 
-    'Your one account for all our apps.', 
-    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>', 
-    'https://derbent.zerdalu.com', 
+    'sso',
+    'Single sign-on',
+    'Your one account for all our apps.',
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
+    'https://derbent.zerdalu.com',
     'http://localhost:7777',
     1,
     1

@@ -1,0 +1,284 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1024"
+  height="1024"
+  viewBox="0 0 1024 1024"
+  fill="none"
+>
+  <title>Derbent Application Logo</title>
+  <desc>Stepped obsidian vault emblem with photonic light bars and the Derbent shield monolith.</desc>
+
+  <defs>
+    <!-- Canvas Background Gradients -->
+    <radialGradient id="canvas-radial" cx="50%" cy="42%" r="65%" fx="50%" fy="42%">
+      <stop offset="0%" stop-color="#1c1f2b" />
+      <stop offset="52%" stop-color="#101219" />
+      <stop offset="100%" stop-color="#08090d" />
+    </radialGradient>
+
+    <radialGradient id="ambient-core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="45%" stop-color="#cbd5e1" stop-opacity="0.06" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Vault Diamond Gradients -->
+    <linearGradient id="diamond-border" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.14" />
+    </linearGradient>
+
+    <!-- Stepped Node Frame Gradients -->
+    <linearGradient id="outer-step-fill" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#232634" />
+      <stop offset="100%" stop-color="#11131b" />
+    </linearGradient>
+
+    <linearGradient id="outer-step-stroke" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.38" />
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.22" />
+    </linearGradient>
+
+    <linearGradient id="middle-channel-fill" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#0d0e14" />
+      <stop offset="100%" stop-color="#151822" />
+    </linearGradient>
+
+    <linearGradient id="inner-chamber-fill" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#272b3a" />
+      <stop offset="38%" stop-color="#181b25" />
+      <stop offset="100%" stop-color="#0f1118" />
+    </linearGradient>
+
+    <radialGradient id="chamber-top-shine" cx="50%" cy="0%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="60%" stop-color="#ffffff" stop-opacity="0.03" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+
+    <linearGradient id="inner-chamber-stroke" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.28" />
+    </linearGradient>
+
+    <!-- Shield & Monolith Gradients -->
+    <linearGradient id="shield-body-fill" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
+    </linearGradient>
+
+    <linearGradient id="shield-stroke-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="65%" stop-color="#f1f5f9" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+
+    <linearGradient id="monolith-fill" x1="12" y1="5.8985" x2="12" y2="16.6615" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Full Bleed Obsidian Canvas -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#canvas-radial)" />
+
+  <!-- 2. Subtle Architectural Axes & Concentric Vault Rings -->
+  <g id="vault-background-architecture" opacity="0.75">
+    <!-- Horizontal & Vertical Precision Hairlines -->
+    <line x1="0" y1="512" x2="1024" y2="512" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1.5" />
+    <line x1="512" y1="0" x2="512" y2="1024" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1.5" />
+
+    <!-- Outer Stepped Diamond -->
+    <rect
+      x="152"
+      y="152"
+      width="720"
+      height="720"
+      rx="112"
+      ry="112"
+      transform="rotate(45 512 512)"
+      fill="#12141d"
+      fill-opacity="0.35"
+      stroke="url(#diamond-border)"
+      stroke-width="2"
+    />
+
+    <!-- Inner Stepped Diamond -->
+    <rect
+      x="212"
+      y="212"
+      width="600"
+      height="600"
+      rx="92"
+      ry="92"
+      transform="rotate(45 512 512)"
+      fill="#161924"
+      fill-opacity="0.5"
+      stroke="url(#diamond-border)"
+      stroke-width="2"
+    />
+  </g>
+
+  <!-- 3. Ambient Photonic Halo Behind Vault Frame -->
+  <circle cx="512" cy="512" r="390" fill="url(#ambient-core-glow)" />
+
+  <!-- 4. Stepped Obsidian Node Frame -->
+  <g id="stepped-vault-frame">
+    <!-- Drop Shadow Base -->
+    <rect
+      x="196"
+      y="208"
+      width="632"
+      height="632"
+      rx="144"
+      ry="144"
+      fill="#000000"
+      fill-opacity="0.55"
+    />
+
+    <!-- Outer Stepped Obsidian Bezel -->
+    <rect
+      x="196"
+      y="196"
+      width="632"
+      height="632"
+      rx="144"
+      ry="144"
+      fill="url(#outer-step-fill)"
+      stroke="url(#outer-step-stroke)"
+      stroke-width="2.5"
+    />
+
+    <!-- Middle Recessed Bevel Channel -->
+    <rect
+      x="224"
+      y="224"
+      width="576"
+      height="576"
+      rx="122"
+      ry="122"
+      fill="url(#middle-channel-fill)"
+      stroke="#ffffff"
+      stroke-opacity="0.16"
+      stroke-width="2"
+    />
+
+    <!-- Inner Vault Chamber -->
+    <rect
+      x="250"
+      y="250"
+      width="524"
+      height="524"
+      rx="100"
+      ry="100"
+      fill="url(#inner-chamber-fill)"
+    />
+    <rect
+      x="250"
+      y="250"
+      width="524"
+      height="524"
+      rx="100"
+      ry="100"
+      fill="url(#chamber-top-shine)"
+      stroke="url(#inner-chamber-stroke)"
+      stroke-width="2.5"
+    />
+
+    <!-- Inner Specular Chamber Hairline -->
+    <rect
+      x="266"
+      y="266"
+      width="492"
+      height="492"
+      rx="86"
+      ry="86"
+      stroke="#ffffff"
+      stroke-opacity="0.07"
+      stroke-width="1.5"
+    />
+  </g>
+
+  <!-- 5. Symmetrical Photonic Light Bars & Apex Ports -->
+  <g id="photonic-light-bars">
+    <!-- Top & Bottom Polar Port Ticks (Outer Halo + Core) -->
+    <rect x="460" y="216" width="104" height="16" rx="8" ry="8" fill="#ffffff" fill-opacity="0.18" />
+    <rect x="476" y="221" width="72" height="6" rx="3" ry="3" fill="#ffffff" />
+
+    <rect x="460" y="792" width="104" height="16" rx="8" ry="8" fill="#ffffff" fill-opacity="0.18" />
+    <rect x="476" y="797" width="72" height="6" rx="3" ry="3" fill="#ffffff" />
+
+    <!-- Left & Right Polar Port Ticks (Outer Halo + Core) -->
+    <rect x="216" y="460" width="16" height="104" rx="8" ry="8" fill="#ffffff" fill-opacity="0.18" />
+    <rect x="221" y="476" width="6" height="72" rx="3" ry="3" fill="#ffffff" />
+
+    <rect x="792" y="460" width="16" height="104" rx="8" ry="8" fill="#ffffff" fill-opacity="0.18" />
+    <rect x="797" y="476" width="6" height="72" rx="3" ry="3" fill="#ffffff" />
+  </g>
+
+  <!-- 6. Central Derbent Shield & Monolith Core -->
+  <g id="derbent-emblem">
+    <!-- Soft Photonic Glow Behind Shield -->
+    <circle cx="512" cy="512" r="210" fill="url(#ambient-core-glow)" />
+
+    <g transform="translate(512 512) scale(17.5) translate(-12 -12)">
+      <!-- Shield Ambient Shadow -->
+      <path
+        d="M11.302 21.6455C11.5234 21.7747 11.6341 21.8393 11.7903 21.8728C11.9116 21.8988 12.0884 21.8988 12.2097 21.8728C12.3659 21.8393 12.4766 21.7747 12.698 21.6455C14.646 20.5091 20 16.9391 20 12.0307V7.24825C20 6.44873 20 6.04898 19.8692 5.70535C19.7537 5.40179 19.566 5.13093 19.3223 4.91618C19.0465 4.67309 18.6722 4.53273 17.9236 4.252L12.5618 2.24132C12.3539 2.16335 12.25 2.12438 12.143 2.10893C12.0482 2.09522 11.9518 2.09522 11.857 2.10893C11.75 2.12438 11.6461 2.16335 11.4382 2.24132L6.0764 4.252C5.3278 4.53273 4.9535 4.67309 4.67766 4.91618C4.43398 5.13093 4.24627 5.40179 4.13076 5.70535C4 6.04898 4 6.44873 4 7.24825V12.0307C4 16.9391 9.35396 20.5091 11.302 21.6455Z"
+        transform="translate(0 0.45)"
+        stroke="#000000"
+        stroke-opacity="0.55"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      <!-- Shield Outer Photonic Bloom -->
+      <path
+        d="M11.302 21.6455C11.5234 21.7747 11.6341 21.8393 11.7903 21.8728C11.9116 21.8988 12.0884 21.8988 12.2097 21.8728C12.3659 21.8393 12.4766 21.7747 12.698 21.6455C14.646 20.5091 20 16.9391 20 12.0307V7.24825C20 6.44873 20 6.04898 19.8692 5.70535C19.7537 5.40179 19.566 5.13093 19.3223 4.91618C19.0465 4.67309 18.6722 4.53273 17.9236 4.252L12.5618 2.24132C12.3539 2.16335 12.25 2.12438 12.143 2.10893C12.0482 2.09522 11.9518 2.09522 11.857 2.10893C11.75 2.12438 11.6461 2.16335 11.4382 2.24132L6.0764 4.252C5.3278 4.53273 4.9535 4.67309 4.67766 4.91618C4.43398 5.13093 4.24627 5.40179 4.13076 5.70535C4 6.04898 4 6.44873 4 7.24825V12.0307C4 16.9391 9.35396 20.5091 11.302 21.6455Z"
+        fill="url(#shield-body-fill)"
+        stroke="#ffffff"
+        stroke-opacity="0.16"
+        stroke-width="3.1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      <!-- Shield Primary Contour -->
+      <path
+        d="M11.302 21.6455C11.5234 21.7747 11.6341 21.8393 11.7903 21.8728C11.9116 21.8988 12.0884 21.8988 12.2097 21.8728C12.3659 21.8393 12.4766 21.7747 12.698 21.6455C14.646 20.5091 20 16.9391 20 12.0307V7.24825C20 6.44873 20 6.04898 19.8692 5.70535C19.7537 5.40179 19.566 5.13093 19.3223 4.91618C19.0465 4.67309 18.6722 4.53273 17.9236 4.252L12.5618 2.24132C12.3539 2.16335 12.25 2.12438 12.143 2.10893C12.0482 2.09522 11.9518 2.09522 11.857 2.10893C11.75 2.12438 11.6461 2.16335 11.4382 2.24132L6.0764 4.252C5.3278 4.53273 4.9535 4.67309 4.67766 4.91618C4.43398 5.13093 4.24627 5.40179 4.13076 5.70535C4 6.04898 4 6.44873 4 7.24825V12.0307C4 16.9391 9.35396 20.5091 11.302 21.6455Z"
+        stroke="url(#shield-stroke-grad)"
+        stroke-width="1.85"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      <!-- Monolith Core Outer Photonic Halo -->
+      <rect
+        x="8.95"
+        y="5.42"
+        width="6.1"
+        height="11.72"
+        rx="1.9"
+        ry="1.9"
+        fill="#ffffff"
+        fill-opacity="0.16"
+      />
+
+      <!-- Monolith Core Pillar -->
+      <rect
+        x="9.4332"
+        y="5.8985"
+        width="5.1336"
+        height="10.763"
+        rx="1.4616"
+        ry="1.4616"
+        fill="url(#monolith-fill)"
+      />
+    </g>
+  </g>
+</svg>

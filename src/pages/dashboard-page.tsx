@@ -1,7 +1,7 @@
 import { AppIcon } from "@/components/app-icon";
 import { AuthAlert, AuthShell } from "@/components/auth-shell";
 import { apiGet, apiPost } from "@/utils/api-client";
-import { navigate, useRouterLocation } from "@/utils/router";
+import { buildAuthQuery, navigate, useRouterLocation } from "@/utils/router";
 import {
   ArrowUpRightIcon,
   DotsThreeIcon,
@@ -42,8 +42,12 @@ function resolveSuccessMessage(successParam: string | null): string | null {
       return "Two-Factor Authentication was successfully enabled.";
     case "2fa_disabled":
       return "Two-Factor Authentication was successfully disabled.";
+    case "password_changed":
+      return "Password changed successfully.";
+    case "password_reset":
+      return "Password reset successful.";
     default:
-      return successParam;
+      return null;
   }
 }
 
@@ -66,8 +70,9 @@ function AppRow({
 }: AppRowProps): ReactElement {
   const isLoggedIn = app.session !== null;
   const hasPassword = app.session?.hasPassword !== false;
-  const showAccountMenu = (isThisRowSso && isLoggedInAsSso) || (!isThisRowSso && !isLoggedInAsSso && isLoggedIn);
+  const showAccountMenu = (isThisRowSso && isLoggedInAsSso) || (!isThisRowSso && isLoggedIn && !app.isSsoFallback);
   const showQuickOpen = !isThisRowSso && isLoggedIn;
+  const encodedAppId = encodeURIComponent(app.config.id);
 
   return (
     <div
@@ -127,7 +132,7 @@ function AppRow({
               {hasPassword ? (
                 <MenuItem
                   onClick={() => {
-                    navigate(`/change-password?app_id=${app.config.id}`);
+                    navigate(`/change-password?app_id=${encodedAppId}`);
                   }}
                 >
                   <span className="flex items-center gap-2">
@@ -138,7 +143,7 @@ function AppRow({
               ) : null}
               <MenuItem
                 onClick={() => {
-                  navigate(`/2fa/setup?app_id=${app.config.id}`);
+                  navigate(`/2fa/setup?app_id=${encodedAppId}`);
                 }}
               >
                 <span className="flex items-center gap-2">
@@ -210,7 +215,7 @@ function AppRow({
             size={ButtonSizes.Sm}
             disabled={!app.config.allowLogins}
             onClick={() => {
-              navigate(`/login?app_id=${app.config.id}&redirect=/`);
+              navigate(`/login?${buildAuthQuery(app.config.id, "/")}`);
             }}
           >
             <SignInIcon aria-hidden="true" className="size-4.5" />

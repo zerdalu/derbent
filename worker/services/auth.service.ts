@@ -136,8 +136,8 @@ export class AuthService {
       throw new AppError("Logins are currently disabled for this application.", 403);
     }
 
-    const { ipAttempts, emailAttempts } = await this.loginAttemptRepo.getAttemptCounts(normalizedEmail, ip);
-    if (ipAttempts >= MAX_IP_LOGIN_ATTEMPTS || emailAttempts >= MAX_EMAIL_LOGIN_ATTEMPTS) {
+    const { ipAttempts } = await this.loginAttemptRepo.getAttemptCounts(normalizedEmail, ip);
+    if (ipAttempts >= MAX_IP_LOGIN_ATTEMPTS) {
       throw new AppError("Too many failed login attempts from this network. Please try again in 15 minutes.", 429);
     }
 
@@ -226,9 +226,12 @@ export class AuthService {
         }
       }
 
-      if (await this.userRepo.hasAnyAppAccount(normalizedEmail)) {
+      if (await this.userRepo.hasAnyVerifiedAppAccount(normalizedEmail)) {
         throw new AppError("An app-level account already exists for this email.", 409);
       }
+
+      // Remove any unverified squatted app records before provisioning the verified SSO account
+      await this.userRepo.deleteUnverifiedByEmail(normalizedEmail);
 
       const userId = generateUUIDv7();
       await this.userRepo.create({
@@ -266,6 +269,9 @@ export class AuthService {
     if (user.email_verified === 0) {
       await this.userRepo.updatePassword(user.id, `OAUTH:${provider.toUpperCase()}`);
       await this.userRepo.markEmailVerified(user.id);
+      if (user.app === "sso") {
+        await this.userRepo.deleteUnverifiedByEmail(normalizedEmail, user.id);
+      }
       await this.userTokenVersionRepo.clearUserVersion(user.id);
       const refreshedUser = await this.userRepo.findById(user.id);
       if (!refreshedUser) {
@@ -292,17 +298,48 @@ export class AuthService {
     }
 
     const existingSso = await this.userRepo.findByEmailAndApp(normalizedEmail, "sso");
-    if (existingSso) {
+    if (existingSso && existingSso.email_verified === 1) {
       throw new AppError("An SSO account already exists for this email.", 409);
     }
 
-    if (appId !== "sso") {
-      const existingAppUser = await this.userRepo.findByEmailAndApp(normalizedEmail, appId);
-      if (existingAppUser) {
+    if (appId === "sso" && (await this.userRepo.hasAnyVerifiedAppAccount(normalizedEmail))) {
+      throw new AppError("An app-level account already exists for this email.", 409);
+    }
+
+    const existingAppUser =
+      appId === "sso" ? existingSso : await this.userRepo.findByEmailAndApp(normalizedEmail, appId);
+
+    if (existingAppUser) {
+      if (existingAppUser.email_verified === 1) {
         throw new AppError("Account already exists for this app.", 409);
       }
-    } else if (await this.userRepo.hasAnyAppAccount(normalizedEmail)) {
-      throw new AppError("An app-level account already exists for this email.", 409);
+
+      if (existingAppUser.is_locked === 1) {
+        throw new AppError("This account has been locked. Please contact support.", 403);
+      }
+
+      if (await this.tokenRepo.isVerificationEmailOnCooldown(existingAppUser.id)) {
+        throw new AppError("A verification email was recently sent. Please wait a minute and try again.", 429);
+      }
+
+      const phash = await hashPassword(password, this.hashIterations);
+      await this.userRepo.updatePassword(existingAppUser.id, phash);
+      await this.userTokenVersionRepo.clearUserVersion(existingAppUser.id);
+
+      const token = crypto.randomUUID();
+      await this.tokenRepo.saveEmailVerificationToken(token, existingAppUser.id);
+      await this.emailService.sendVerificationEmail(normalizedEmail, token, appId, redirect);
+      await this.tokenRepo.setVerificationEmailCooldown(existingAppUser.id, 60);
+
+      await this.auditLogRepo.log({
+        action: "register",
+        userId: existingAppUser.id,
+        email: normalizedEmail,
+        ip,
+        userAgent,
+        details: { appId, overwrittenUnverified: true },
+      });
+      return;
     }
 
     const phash = await hashPassword(password, this.hashIterations);
@@ -394,6 +431,13 @@ export class AuthService {
       throw new AppError("Logins are currently disabled for this application.", 403);
     }
 
+    if (session.appId === "sso" && requiredAppId !== "sso") {
+      const ssoApp = await this.appRepo.findById("sso");
+      if (!ssoApp || ssoApp.allow_logins === 0) {
+        throw new AppError("Single sign-on is currently disabled.", 403);
+      }
+    }
+
     if (currentUserAgent && session.userAgent !== currentUserAgent) {
       await this.auditLogRepo.log({
         action: "security_alert_hijack",
@@ -448,10 +492,32 @@ export class AuthService {
 
     const user = await this.userRepo.findById(userId);
     if (!user) {
+      await this.tokenRepo.deleteEmailVerificationToken(token);
       throw new AppError("Verification link is invalid or has expired.", 400);
     }
 
-    await this.userRepo.markEmailVerified(userId);
+    if (user.app === "sso") {
+      if (await this.userRepo.hasAnyVerifiedAppAccount(user.email)) {
+        await this.tokenRepo.deleteEmailVerificationToken(token);
+        if (user.email_verified === 0) {
+          await this.userRepo.delete(user.id);
+        }
+        throw new AppError("An app-level account already exists for this email.", 409);
+      }
+      await this.userRepo.markEmailVerified(userId);
+      await this.userRepo.deleteUnverifiedByEmail(user.email, userId);
+    } else {
+      const existingSso = await this.userRepo.findByEmailAndApp(user.email, "sso");
+      if (existingSso && existingSso.email_verified === 1) {
+        await this.tokenRepo.deleteEmailVerificationToken(token);
+        if (user.email_verified === 0) {
+          await this.userRepo.delete(user.id);
+        }
+        throw new AppError("An SSO account already exists for this email.", 409);
+      }
+      await this.userRepo.markEmailVerified(userId);
+    }
+
     await this.tokenRepo.deleteEmailVerificationToken(token);
 
     await this.auditLogRepo.log({
@@ -542,10 +608,12 @@ export class AuthService {
 
     const user = await this.userRepo.findById(userId);
     if (!user) {
+      await this.tokenRepo.deletePasswordResetToken(token);
       throw new AppError("User not found.", 400);
     }
 
     if (user.phash.startsWith("OAUTH:")) {
+      await this.tokenRepo.deletePasswordResetToken(token);
       throw new AppError("Password reset is not available for OAuth-only accounts.", 400);
     }
 
@@ -555,6 +623,15 @@ export class AuthService {
 
     const phash = await hashPassword(newPassword, this.hashIterations);
     await this.userRepo.updatePassword(userId, phash);
+
+    // Completing password reset via an email token proves email ownership
+    if (user.email_verified === 0) {
+      await this.userRepo.markEmailVerified(userId);
+      if (user.app === "sso") {
+        await this.userRepo.deleteUnverifiedByEmail(user.email, userId);
+      }
+    }
+
     await this.userTokenVersionRepo.clearUserVersion(userId);
     await this.tokenRepo.deletePasswordResetToken(token);
     await this.loginAttemptRepo.clearAttempts(user.email, ip);
@@ -658,6 +735,7 @@ export class AuthService {
 
     const user = await this.userRepo.findById(userId);
     if (!user) {
+      await this.tokenRepo.deleteMagicLinkToken(token);
       throw new AppError("User not found.", 400);
     }
 
@@ -691,7 +769,6 @@ export class AuthService {
     }
 
     await this.tokenRepo.deleteMagicLinkToken(token);
-    await this.userTokenVersionRepo.setUserVersion(user.id, user.token_version);
 
     return this.handleSuccessfulAuthentication(user, requiredAppId, ip, userAgent, "magic_link");
   }
@@ -746,6 +823,12 @@ export class AuthService {
       throw new AppError("This account has been locked. Please contact support.", 403);
     }
 
+    const priorUserAttempts = await this.tokenRepo.getTotpActionAttempts(user.id);
+    if (priorUserAttempts >= MAX_2FA_TOKEN_ATTEMPTS) {
+      await this.tokenRepo.deleteTwoFactorLoginToken(token);
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
+
     const isCodeReused = await this.tokenRepo.isTotpCodeUsed(user.id, code);
     if (isCodeReused) {
       throw new AppError("Code has already been used. Please wait for the next authenticator code.", 400);
@@ -753,22 +836,28 @@ export class AuthService {
 
     const isValid = await verifyTOTP(user.two_factor_secret, code);
     if (!isValid) {
-      const attempts = await this.tokenRepo.incrementTwoFactorLoginAttempts(token, loginData);
+      const [tokenAttempts, userAttempts] = await Promise.all([
+        this.tokenRepo.incrementTwoFactorLoginAttempts(token, loginData),
+        this.tokenRepo.incrementTotpActionAttempts(user.id),
+      ]);
+      const effectiveAttempts = Math.max(tokenAttempts, userAttempts);
+
       await this.auditLogRepo.log({
         action: "login_2fa_failed",
         userId: user.id,
         email: user.email,
         ip,
         userAgent,
-        details: { attempts },
+        details: { attempts: effectiveAttempts },
       });
-      if (attempts >= MAX_2FA_TOKEN_ATTEMPTS) {
+      if (effectiveAttempts >= MAX_2FA_TOKEN_ATTEMPTS) {
         await this.tokenRepo.deleteTwoFactorLoginToken(token);
-        throw new AppError("Too many failed verification attempts. Please sign in again.", 429);
+        throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
       }
       throw new AppError("Invalid two-factor code.", 400);
     }
 
+    await this.tokenRepo.clearTotpActionAttempts(user.id);
     await this.tokenRepo.markTotpCodeUsed(user.id, code, 90);
     await this.tokenRepo.deleteTwoFactorLoginToken(token);
 
@@ -792,6 +881,12 @@ export class AuthService {
       throw new AppError("Setup session expired. Please try again.", 400);
     }
 
+    const priorAttempts = await this.tokenRepo.getTotpActionAttempts(userId);
+    if (priorAttempts >= MAX_2FA_TOKEN_ATTEMPTS) {
+      await this.tokenRepo.deleteTwoFactorSetupSecret(userId);
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
+
     const isCodeReused = await this.tokenRepo.isTotpCodeUsed(userId, code);
     if (isCodeReused) {
       throw new AppError("Code has already been used. Please wait for the next authenticator code.", 400);
@@ -802,7 +897,6 @@ export class AuthService {
       const attempts = await this.tokenRepo.incrementTotpActionAttempts(userId);
       if (attempts >= MAX_2FA_TOKEN_ATTEMPTS) {
         await this.tokenRepo.deleteTwoFactorSetupSecret(userId);
-        await this.tokenRepo.clearTotpActionAttempts(userId);
         throw new AppError("Too many failed verification attempts. Setup session has been reset.", 429);
       }
       throw new AppError("Invalid code. Please try again.", 400);
@@ -822,6 +916,11 @@ export class AuthService {
       throw new AppError("2FA is not enabled.", 400);
     }
 
+    const priorAttempts = await this.tokenRepo.getTotpActionAttempts(userId);
+    if (priorAttempts >= MAX_2FA_TOKEN_ATTEMPTS) {
+      throw new AppError("Too many failed verification attempts. Please try again in 5 minutes.", 429);
+    }
+
     const isCodeReused = await this.tokenRepo.isTotpCodeUsed(userId, code);
     if (isCodeReused) {
       throw new AppError("Code has already been used. Please wait for the next authenticator code.", 400);
@@ -839,7 +938,6 @@ export class AuthService {
       if (attempts >= MAX_2FA_TOKEN_ATTEMPTS) {
         const newVersion = await this.userRepo.incrementTokenVersion(userId);
         await this.userTokenVersionRepo.setUserVersion(userId, newVersion);
-        await this.tokenRepo.clearTotpActionAttempts(userId);
         throw new AppError("Too many failed verification attempts. Please sign in again.", 429);
       }
       throw new AppError("Invalid code.", 400);

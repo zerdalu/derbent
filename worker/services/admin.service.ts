@@ -331,12 +331,15 @@ export class AdminService {
       auditDetails.app = data.app;
     }
 
+    const isEmailUnverified = data.email_verified === 0 && user.email_verified === 1;
+    const isMetadataChanged = updates.metadata !== undefined && updates.metadata !== user.metadata;
+
     let updatedUser = await this.userRepo.update(userId, updates);
     if (!updatedUser) {
       throw new AppError("Failed to update user", 500);
     }
 
-    if (isAppChanged) {
+    if (isAppChanged || isEmailUnverified || isMetadataChanged) {
       await this.userRepo.incrementTokenVersion(userId);
       await this.userTokenVersionRepo.clearUserVersion(userId);
       const refreshed = await this.userRepo.findById(userId);

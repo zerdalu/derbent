@@ -116,10 +116,13 @@ export class EmailService {
     }
   }
 
-  private async sendViaResend(to: string, subject: string, html: string): Promise<void> {
-    if (this.isDev && !this.resendApiKey.trim()) {
-      this.logger?.info(`[DEV EMAIL] To: ${to} | Subject: ${subject}`);
-      return;
+  private async sendViaResend(to: string, subject: string, html: string, actionUrl?: string): Promise<void> {
+    if (this.isDev) {
+      const linkInfo = actionUrl ? ` | Action URL: ${actionUrl}` : "";
+      this.logger?.info(`[DEV EMAIL] To: ${to} | Subject: ${subject}${linkInfo}`);
+      if (!this.resendApiKey.trim()) {
+        return;
+      }
     }
 
     const response = await fetch("https://api.resend.com/emails", {
@@ -168,6 +171,7 @@ export class EmailService {
           <p style="color: #71717a; font-size: 12px;">If you didn't create an account, you can safely ignore this email.</p>
         </div>
       `,
+      verificationUrl,
     );
   }
 
@@ -187,6 +191,7 @@ export class EmailService {
           <p style="color: #71717a; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
         </div>
       `,
+      resetUrl,
     );
   }
 
@@ -207,6 +212,7 @@ export class EmailService {
           <p style="color: #71717a; font-size: 12px;">If you didn't request this link, you can safely ignore this email.</p>
         </div>
       `,
+      magicLinkUrl,
     );
   }
 }

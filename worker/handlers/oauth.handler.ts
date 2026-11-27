@@ -1,8 +1,13 @@
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import { buildCookieOptions } from "@worker/utils/cookie";
-import { decodeBase64UrlUtf8, encodeBase64UrlUtf8 } from "@worker/utils/crypto";
-import { clearConflictingSessions, getAllowedAppOrigins, getClientInfo, resolveTargetApp } from "@worker/utils/runtime";
+import { constantTimeEqual, decodeBase64UrlUtf8, encodeBase64UrlUtf8 } from "@worker/utils/crypto";
+import {
+  clearConflictingSessions,
+  getClientInfo,
+  resolveAllowedOriginsForApp,
+  resolveTargetApp,
+} from "@worker/utils/runtime";
 import { sanitizeRedirect } from "@worker/utils/url";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -67,6 +72,27 @@ function decodeOAuthState(c: Context<HonoEnv>, rawState: string | undefined): OA
   }
 }
 
+function resolveOAuthErrorCode(error: unknown, provider: "github" | "google"): string {
+  if (error instanceof AppError) {
+    if (error.status === 409) {
+      return "account_conflict";
+    }
+    if (error.status === 403) {
+      const lower = error.message.toLowerCase();
+      if (lower.includes("locked")) {
+        return "account_locked";
+      }
+      if (lower.includes("registration")) {
+        return "signups_disabled";
+      }
+      if (lower.includes("login")) {
+        return "logins_disabled";
+      }
+    }
+  }
+  return `${provider}_failed`;
+}
+
 export class OAuthHandler {
   static async handleGitHubLogin(c: Context<HonoEnv>): Promise<Response> {
     const config = c.get("config");
@@ -115,7 +141,9 @@ export class OAuthHandler {
     const parsedState = decodeOAuthState(c, state);
     const appId = parsedState.appId || "sso";
     const targetApp = await appRepo.findById(appId);
-    const allowedOrigins: readonly string[] = targetApp ? getAllowedAppOrigins(targetApp, config.APP_ENV) : [];
+    const allowedOrigins: readonly string[] = targetApp
+      ? await resolveAllowedOriginsForApp(appRepo, targetApp, config.APP_ENV)
+      : [];
     const redirect = sanitizeRedirect(parsedState.redirect, allowedOrigins);
 
     if (!config.GITHUB_CLIENT_ID || !config.GITHUB_CLIENT_SECRET) {
@@ -128,7 +156,10 @@ export class OAuthHandler {
       return c.redirect(`/login?${qs}`);
     }
 
-    if (!storedNonce || !parsedState.nonce || storedNonce !== parsedState.nonce) {
+    const isNonceValid =
+      Boolean(storedNonce && parsedState.nonce) && (await constantTimeEqual(storedNonce ?? "", parsedState.nonce));
+
+    if (!isNonceValid) {
       const qs = new URLSearchParams({ app_id: appId, redirect, error: "github_failed" }).toString();
       return c.redirect(`/login?${qs}`);
     }
@@ -200,10 +231,13 @@ export class OAuthHandler {
 
       return c.redirect(redirect);
     } catch (error: unknown) {
-      if (error instanceof Error) {
+      if (error instanceof AppError && error.status < 500) {
+        c.get("logger").warn(`GitHub authentication rejected: ${error.message}`);
+      } else if (error instanceof Error) {
         c.get("logger").error(`GitHub authentication callback error: ${error.message}`, error);
       }
-      const qs = new URLSearchParams({ app_id: appId, redirect, error: "github_failed" }).toString();
+      const errorCode = resolveOAuthErrorCode(error, "github");
+      const qs = new URLSearchParams({ app_id: appId, redirect, error: errorCode }).toString();
       return c.redirect(`/login?${qs}`);
     }
   }
@@ -255,7 +289,9 @@ export class OAuthHandler {
     const parsedState = decodeOAuthState(c, state);
     const appId = parsedState.appId || "sso";
     const targetApp = await appRepo.findById(appId);
-    const allowedOrigins: readonly string[] = targetApp ? getAllowedAppOrigins(targetApp, config.APP_ENV) : [];
+    const allowedOrigins: readonly string[] = targetApp
+      ? await resolveAllowedOriginsForApp(appRepo, targetApp, config.APP_ENV)
+      : [];
     const redirect = sanitizeRedirect(parsedState.redirect, allowedOrigins);
 
     if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
@@ -268,7 +304,10 @@ export class OAuthHandler {
       return c.redirect(`/login?${qs}`);
     }
 
-    if (!storedNonce || !parsedState.nonce || storedNonce !== parsedState.nonce) {
+    const isNonceValid =
+      Boolean(storedNonce && parsedState.nonce) && (await constantTimeEqual(storedNonce ?? "", parsedState.nonce));
+
+    if (!isNonceValid) {
       const qs = new URLSearchParams({ app_id: appId, redirect, error: "google_failed" }).toString();
       return c.redirect(`/login?${qs}`);
     }
@@ -335,10 +374,13 @@ export class OAuthHandler {
 
       return c.redirect(redirect);
     } catch (error: unknown) {
-      if (error instanceof Error) {
+      if (error instanceof AppError && error.status < 500) {
+        c.get("logger").warn(`Google authentication rejected: ${error.message}`);
+      } else if (error instanceof Error) {
         c.get("logger").error(`Google authentication callback error: ${error.message}`, error);
       }
-      const qs = new URLSearchParams({ app_id: appId, redirect, error: "google_failed" }).toString();
+      const errorCode = resolveOAuthErrorCode(error, "google");
+      const qs = new URLSearchParams({ app_id: appId, redirect, error: errorCode }).toString();
       return c.redirect(`/login?${qs}`);
     }
   }

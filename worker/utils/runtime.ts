@@ -148,16 +148,41 @@ export function getAllowedAppOrigins(appRecord: AppRecord, appEnv?: string): rea
   return appEnv === "development" ? [appRecord.prod_url, appRecord.dev_url] : [appRecord.prod_url];
 }
 
+export async function resolveAllowedOriginsForApp(
+  appRepo: AppRepository,
+  appRecord: AppRecord,
+  appEnv?: string,
+): Promise<readonly string[]> {
+  if (appRecord.id !== "sso") {
+    return getAllowedAppOrigins(appRecord, appEnv);
+  }
+
+  const allApps = await appRepo.findAll();
+  const origins = new Set<string>(getAllowedAppOrigins(appRecord, appEnv));
+  for (const candidate of allApps) {
+    if (candidate.allow_logins === 1) {
+      for (const origin of getAllowedAppOrigins(candidate, appEnv)) {
+        origins.add(origin);
+      }
+    }
+  }
+  return Array.from(origins);
+}
+
 export async function resolveTargetApp(
   appRepo: AppRepository,
   rawAppId?: string,
   rawRedirect?: string,
   appEnv?: string,
+  strictAppId = false,
 ): Promise<ResolvedAppContext> {
   const targetId = rawAppId?.trim() || "sso";
   let appRecord = await appRepo.findById(targetId);
 
   if (!appRecord) {
+    if (strictAppId && targetId !== "sso") {
+      throw new AppError("Target application was not found.", 404, "APP_NOT_FOUND");
+    }
     appRecord = await appRepo.findById("sso");
   }
 
@@ -165,7 +190,7 @@ export async function resolveTargetApp(
     throw new AppError("SSO app configuration is missing.", 500);
   }
 
-  const allowedOrigins = getAllowedAppOrigins(appRecord, appEnv);
+  const allowedOrigins = await resolveAllowedOriginsForApp(appRepo, appRecord, appEnv);
   const redirect = sanitizeRedirect(rawRedirect ?? "/", allowedOrigins);
 
   return {

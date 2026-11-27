@@ -61,6 +61,6 @@ export class LoginAttemptRepository {
   }
 
   async clearAttempts(email: string, ip: string): Promise<void> {
-    await Promise.all([this.kv.delete(this.getKey(email, ip)), this.kv.delete(this.getEmailKey(email))]);
+    await this.kv.delete(this.getKey(email, ip));
   }
 }

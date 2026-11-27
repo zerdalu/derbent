@@ -22,11 +22,12 @@ export function buildCookieOptions(config: DerbentConfig, maxAge?: number): Cook
   return options;
 }
 
-export function parseCookieHeader(cookieHeader: string, targetName: string): string | null {
+export function parseCookieHeaderAll(cookieHeader: string, targetName: string): readonly string[] {
   if (!cookieHeader) {
-    return null;
+    return [];
   }
 
+  const values: string[] = [];
   const pairs = cookieHeader.split(";");
   for (const pair of pairs) {
     const eqIndex = pair.indexOf("=");
@@ -41,15 +42,25 @@ export function parseCookieHeader(cookieHeader: string, targetName: string): str
 
     const rawValue = pair.slice(eqIndex + 1).trim();
     if (!rawValue) {
-      return null;
+      continue;
     }
 
+    let decoded = rawValue;
     try {
-      return decodeURIComponent(rawValue);
+      decoded = decodeURIComponent(rawValue);
     } catch {
-      return rawValue;
+      decoded = rawValue;
+    }
+
+    if (!values.includes(decoded)) {
+      values.push(decoded);
     }
   }
 
-  return null;
+  return values;
+}
+
+export function parseCookieHeader(cookieHeader: string, targetName: string): string | null {
+  const matches = parseCookieHeaderAll(cookieHeader, targetName);
+  return matches[0] ?? null;
 }

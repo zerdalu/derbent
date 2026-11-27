@@ -150,7 +150,7 @@ export function ResetPasswordPage(): ReactElement {
     const loginQs = new URLSearchParams({
       app_id: res.data.appId,
       redirect: "/",
-      success: "Password reset successful. You can now sign in.",
+      success: "password_reset",
     }).toString();
     navigate(`/login?${loginQs}`);
   };
@@ -273,7 +273,7 @@ export function ChangePasswordPage(): ReactElement {
     const loginQs = new URLSearchParams({
       app_id: appId,
       redirect: "/",
-      success: res.data.message,
+      success: "password_changed",
     }).toString();
     navigate(`/login?${loginQs}`);
   };

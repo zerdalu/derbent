@@ -10,7 +10,7 @@ import { EmailQueueMessageSchema } from "@worker/services/email.service";
 import { AppError } from "@worker/types/errors";
 import type { HonoEnv } from "@worker/types/hono-env";
 import type { EmailQueueMessage } from "@worker/types/models";
-import { parseCookieHeader } from "@worker/utils/cookie";
+import { parseCookieHeaderAll } from "@worker/utils/cookie";
 import { createRuntimeServices, parseRetentionDays } from "@worker/utils/runtime";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
@@ -93,14 +93,14 @@ authApiRoutes.post("/2fa/verify", rateLimit(), (c) => AuthHandler.verifyTwoFacto
 app.route("/api/auth", authApiRoutes);
 
 // OAuth Routes (kept at /auth/* for existing OAuth provider callback configurations)
-app.get("/auth/github", (c) => OAuthHandler.handleGitHubLogin(c));
-app.get("/auth/github/callback", (c) => OAuthHandler.handleGitHubCallback(c));
-app.get("/auth/google", (c) => OAuthHandler.handleGoogleLogin(c));
-app.get("/auth/google/callback", (c) => OAuthHandler.handleGoogleCallback(c));
+app.get("/auth/github", rateLimit(), (c) => OAuthHandler.handleGitHubLogin(c));
+app.get("/auth/github/callback", rateLimit(), (c) => OAuthHandler.handleGitHubCallback(c));
+app.get("/auth/google", rateLimit(), (c) => OAuthHandler.handleGoogleLogin(c));
+app.get("/auth/google/callback", rateLimit(), (c) => OAuthHandler.handleGoogleCallback(c));
 
 // Admin Dashboard API Routes
 const adminRoutes = new Hono<HonoEnv>();
-adminRoutes.use("*", adminAuth());
+adminRoutes.use("*", rateLimit(), adminAuth());
 
 adminRoutes.get("/stats", (c) => AdminHandler.getStats(c));
 adminRoutes.get("/settings", (c) => AdminHandler.getSettings(c));
@@ -171,14 +171,16 @@ app.onError((err, c): Response => {
 
 function resolveSessionCookies(cookieHeader: string, appId: string): readonly string[] {
   const candidates: string[] = [];
-  const appCookie = parseCookieHeader(cookieHeader, `session_${appId}`);
-  if (appCookie) {
-    candidates.push(appCookie);
+  for (const appCookie of parseCookieHeaderAll(cookieHeader, `session_${appId}`)) {
+    if (!candidates.includes(appCookie)) {
+      candidates.push(appCookie);
+    }
   }
   if (appId !== "sso") {
-    const ssoCookie = parseCookieHeader(cookieHeader, "session_sso");
-    if (ssoCookie && ssoCookie !== appCookie) {
-      candidates.push(ssoCookie);
+    for (const ssoCookie of parseCookieHeaderAll(cookieHeader, "session_sso")) {
+      if (!candidates.includes(ssoCookie)) {
+        candidates.push(ssoCookie);
+      }
     }
   }
   return candidates;
@@ -288,7 +290,9 @@ export default class DerbentWorker extends WorkerEntrypoint<CloudflareBindings> 
         );
         return { ok: true, session };
       } catch (error: unknown) {
-        lastError = error;
+        if (!(lastError instanceof AppError && lastError.status === 403)) {
+          lastError = error;
+        }
       }
     }
 

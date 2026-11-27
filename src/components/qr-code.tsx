@@ -1,4 +1,4 @@
-import { encodeQrMatrix } from "@/utils/qr-code";
+import { encodeQrMatrix, type QrCodeMatrix } from "@/utils/qr-code";
 import { cn } from "cn";
 import type { ReactElement } from "react";
 
@@ -8,8 +8,32 @@ export interface QrCodeProps {
   readonly className?: string;
 }
 
+function tryEncodeQrMatrix(value: string): QrCodeMatrix | null {
+  try {
+    return encodeQrMatrix(value);
+  } catch {
+    return null;
+  }
+}
+
 export function QrCode({ value, label = "Two-factor authenticator QR code", className }: QrCodeProps): ReactElement {
-  const { size, modules } = encodeQrMatrix(value);
+  const matrix = tryEncodeQrMatrix(value);
+
+  if (!matrix) {
+    return (
+      <output
+        aria-label={label}
+        className={cn(
+          "inline-flex size-48 items-center justify-center rounded-panel border border-border-default bg-surface-100 p-4 text-center font-sans text-xs text-text-secondary shadow-control",
+          className,
+        )}
+      >
+        QR code unavailable for this account length. Use the manual setup key below.
+      </output>
+    );
+  }
+
+  const { size, modules } = matrix;
   const quietZone = 2;
   const viewBoxSize = size + quietZone * 2;
 

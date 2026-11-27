@@ -27,6 +27,31 @@ function resolveQueryError(errorParam: string | null): string | null {
       return "Google authentication failed. Please try again.";
     case "google_not_configured":
       return "Google login is not enabled on this instance.";
+    case "account_locked":
+      return "This account has been locked. Please contact support.";
+    case "signups_disabled":
+      return "Registrations are currently closed for this application.";
+    case "logins_disabled":
+      return "Logins are currently disabled for this application.";
+    case "account_conflict":
+      return "An app-specific account already exists for this email address.";
+    default:
+      return null;
+  }
+}
+
+function resolveQuerySuccess(successParam: string | null): string | null {
+  switch (successParam) {
+    case "password_reset":
+      return "Password reset successful. You can now sign in.";
+    case "password_changed":
+      return "Password changed successfully. Please sign in again.";
+    case "email_verified":
+      return "Email verified successfully. You can now sign in.";
+    case "2fa_enabled":
+      return "Two-Factor Authentication was successfully enabled.";
+    case "2fa_disabled":
+      return "Two-Factor Authentication was successfully disabled.";
     default:
       return null;
   }
@@ -39,7 +64,7 @@ export function LoginPage(): ReactElement {
   const rawRedirect = params.get("redirect") || "/";
   const contextKey = `${appId}:${rawRedirect}`;
   const queryError = resolveQueryError(params.get("error"));
-  const querySuccess = params.get("success");
+  const querySuccess = resolveQuerySuccess(params.get("success"));
 
   const [loadedContext, setLoadedContext] = useState<LoadedAuthContext | null>(null);
   const [email, setEmail] = useState("");

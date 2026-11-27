@@ -51,7 +51,7 @@ function validationError(c: Context<HonoEnv>, message: string): Response {
 async function getActiveSession(
   c: Context<HonoEnv>,
   preferredAppId?: string,
-): Promise<{ readonly session: Session; readonly appId: string } | null> {
+): Promise<{ readonly session: Session; readonly appId: string; readonly sessionId: string } | null> {
   const authService = c.get("authService");
   const appRepo = c.get("appRepo");
   const logger = c.get("logger");
@@ -76,7 +76,7 @@ async function getActiveSession(
     const requiredAppId = normalizedPreferred || cookieAppKey;
     try {
       const session = await authService.verifySession(cookieVal, requiredAppId, ip, userAgent);
-      return { session, appId: cookieAppKey };
+      return { session, appId: cookieAppKey, sessionId: cookieVal };
     } catch (error: unknown) {
       if (error instanceof Error) {
         logger.debug(`Session verification skipped for ${cookieAppKey}: ${error.message}`);
@@ -230,6 +230,7 @@ export class AuthHandler {
         result.output.appId,
         result.output.redirect,
         config.APP_ENV,
+        true,
       );
       const authService = c.get("authService");
       const { ip, userAgent } = getClientInfo(c);
@@ -308,6 +309,7 @@ export class AuthHandler {
         result.output.appId,
         result.output.redirect,
         c.get("config").APP_ENV,
+        true,
       );
       const { ip, userAgent } = getClientInfo(c);
 
@@ -431,6 +433,29 @@ export class AuthHandler {
         }
       }
 
+      const directSessionId = getCookie(c, `session_${resolved.appId}`);
+      const ssoSessionId = resolved.appId !== "sso" ? getCookie(c, "session_sso") : undefined;
+
+      if (directSessionId) {
+        try {
+          await authService.logout(directSessionId, resolved.appId);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            c.get("logger").debug(`Direct session cleanup skipped: ${error.message}`);
+          }
+        }
+      }
+
+      if (ssoSessionId && ssoSessionId !== directSessionId) {
+        try {
+          await authService.logout(ssoSessionId, resolved.appId);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            c.get("logger").debug(`SSO session cleanup skipped: ${error.message}`);
+          }
+        }
+      }
+
       const cookieOptions = buildCookieOptions(config);
       deleteCookie(c, `session_${resolved.appId}`, cookieOptions);
       if (resolved.appId !== "sso") {
@@ -467,7 +492,8 @@ export class AuthHandler {
       const logger = c.get("logger");
       const { ip, userAgent } = getClientInfo(c);
 
-      let targetEmail: string | null = null;
+      const targetEmails = new Set<string>();
+      const sessionIdsToPurge = new Set<string>();
       const allApps = await appRepo.findAll();
 
       for (const app of allApps) {
@@ -476,10 +502,11 @@ export class AuthHandler {
           continue;
         }
 
+        sessionIdsToPurge.add(cookieVal);
+
         try {
           const session = await authService.verifySession(cookieVal, app.id, ip, userAgent);
-          targetEmail = session.email;
-          break;
+          targetEmails.add(session.email);
         } catch (error: unknown) {
           if (error instanceof Error) {
             logger.debug(`Session verification failed for app ${app.id}: ${error.message}`);
@@ -487,12 +514,22 @@ export class AuthHandler {
         }
       }
 
-      if (targetEmail) {
+      for (const targetEmail of targetEmails) {
         try {
           await authService.logoutAllByEmail(targetEmail, ip, userAgent);
         } catch (error: unknown) {
           if (error instanceof Error) {
-            logger.warn(`Logout all by email failed: ${error.message}`);
+            logger.warn(`Logout all by email failed for ${targetEmail}: ${error.message}`);
+          }
+        }
+      }
+
+      for (const sessionId of sessionIdsToPurge) {
+        try {
+          await authService.logout(sessionId);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            logger.debug(`Session KV cleanup skipped: ${error.message}`);
           }
         }
       }
@@ -520,7 +557,13 @@ export class AuthHandler {
         return validationError(c, result.issues[0]?.message ?? "Please enter a valid email address.");
       }
 
-      const resolved = await resolveTargetApp(c.get("appRepo"), result.output.appId, "/", c.get("config").APP_ENV);
+      const resolved = await resolveTargetApp(
+        c.get("appRepo"),
+        result.output.appId,
+        "/",
+        c.get("config").APP_ENV,
+        true,
+      );
       const { ip, userAgent } = getClientInfo(c);
 
       try {
@@ -579,10 +622,23 @@ export class AuthHandler {
         return validationError(c, result.issues[0]?.message ?? "Invalid password details.");
       }
 
+      const authService = c.get("authService");
       const { ip, userAgent } = getClientInfo(c);
-      await c
-        .get("authService")
-        .changePassword(active.session.userId, result.output.currentPassword, result.output.newPassword, ip, userAgent);
+      await authService.changePassword(
+        active.session.userId,
+        result.output.currentPassword,
+        result.output.newPassword,
+        ip,
+        userAgent,
+      );
+
+      try {
+        await authService.logout(active.sessionId);
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          c.get("logger").debug(`Session cleanup after password change skipped: ${error.message}`);
+        }
+      }
 
       const cookieOptions = buildCookieOptions(c.get("config"));
       deleteCookie(c, `session_${active.appId}`, cookieOptions);
@@ -613,6 +669,7 @@ export class AuthHandler {
         result.output.appId,
         result.output.redirect,
         c.get("config").APP_ENV,
+        true,
       );
       const { ip, userAgent } = getClientInfo(c);
 
@@ -655,6 +712,7 @@ export class AuthHandler {
         result.output.appId,
         result.output.redirect,
         config.APP_ENV,
+        true,
       );
       const { ip, userAgent } = getClientInfo(c);
 
@@ -802,6 +860,7 @@ export class AuthHandler {
         result.output.appId,
         result.output.redirect,
         config.APP_ENV,
+        true,
       );
       const { ip, userAgent } = getClientInfo(c);
 

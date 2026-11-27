@@ -54,6 +54,27 @@ export class UserRepository {
     return result !== null;
   }
 
+  async hasAnyVerifiedAppAccount(email: string): Promise<boolean> {
+    const result = await this.db
+      .prepare("SELECT id FROM users WHERE email = ? AND app != 'sso' AND email_verified = 1")
+      .bind(this.normalizeEmail(email))
+      .first();
+    return result !== null;
+  }
+
+  async deleteUnverifiedByEmail(email: string, excludeUserId?: string): Promise<void> {
+    const normalized = this.normalizeEmail(email);
+    if (excludeUserId) {
+      await this.db
+        .prepare("DELETE FROM users WHERE email = ? AND email_verified = 0 AND id != ?")
+        .bind(normalized, excludeUserId)
+        .run();
+      return;
+    }
+
+    await this.db.prepare("DELETE FROM users WHERE email = ? AND email_verified = 0").bind(normalized).run();
+  }
+
   async create(user: Omit<UserRecord, "created_at" | "updated_at">): Promise<void> {
     await this.db
       .prepare(
